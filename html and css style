@@ -1,0 +1,3592 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OSP Truck Slot Booking</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚛</text></svg>">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#25408E',
+            secondary: '#1a2d63',
+            danger: '#ED1C24',
+            success: '#00B050',
+            warning: '#FFDE17',
+          },
+        },
+      },
+    }
+  </script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- chartjs-plugin-datalabels -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; font-size: 15px; }
+    
+    /* ========== LOGIN STYLES ========== */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .enter { animation: fadeUp .35s cubic-bezier(.16,1,.3,1) both; }
+    .fade-in { animation: fadeIn .2s ease-out both; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .focus-ring:focus { outline: none; box-shadow: 0 0 0 4px rgba(37,64,142,.15); border-color: rgba(37,64,142,.6); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 16px; height: 16px; border-radius: 999px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; animation: spin .7s linear infinite; }
+
+    .btn-disabled { opacity: .6; pointer-events: none; }
+    
+    /* ========== MAIN APP STYLES ========== */
+    .sidebar-transition { transition: all 0.3s ease-in-out; }
+    
+    .sidebar-collapsed {
+      width: 80px !important;
+    }
+
+    .sidebar-collapsed .sidebar-text {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .sidebar-collapsed .sidebar-logo-text {
+      display: none;
+    }
+
+    .sidebar-collapsed .nav-item {
+      justify-content: center;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+
+    .sidebar-collapsed .nav-item + div p {
+      opacity: 0;
+      height: 0;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .sidebar-toggle-btn {
+      transition: transform 0.3s ease;
+    }
+    
+    .sidebar-collapsed .sidebar-toggle-btn {
+      transform: rotate(180deg);
+    }
+    
+    .slot-card:hover:not(.full) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(37, 64, 142, 0.1); }
+    .slot-selected { border-color: #25408E; background-color: #eff6ff; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+    .modal-backdrop { background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
+    .animate-zoom-in { animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes zoomIn { from { transform: scale(0.9) translateY(10px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+    .animate-slide-up { animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .form-input-balanced{
+      width:100%; padding:0.6rem 1rem; background:#f8fafc; border:1px solid #e2e8f0;
+      border-radius:0.75rem; font-size:0.9375rem; transition:all 0.2s;
+    }
+    .form-input-balanced:focus{
+      outline:none; border-color:#25408E; box-shadow:0 0 0 3px rgba(37,64,142,0.1); background:#fff;
+    }
+    .label-required::after{ content:" *"; color:#ED1C24; }
+
+    .shipment-tip {
+      position: relative;
+      cursor: help;
+    }
+    .shipment-tip:hover .tip-box {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .tip-box {
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      left: 0;
+      top: 110%;
+      z-index: 50;
+      width: min(520px, 80vw);
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgb(226 232 240);
+      background: white;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.15);
+      transform: translateY(-4px);
+      transition: 0.15s ease;
+      font-size: 12px;
+      color: rgb(51 65 85);
+    }
+    .tip-box .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      word-break: break-all;
+    }
+
+    @keyframes bounce-slow {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-10px);
+      }
+    }
+
+    .animate-bounce-slow {
+      animation: bounce-slow 2s ease-in-out infinite;
+    }
+
+    .quick-action-btn {
+      transition: all 0.2s ease;
+    }
+    
+    .quick-action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(37, 64, 142, 0.15);
+    }
+    
+    .quick-action-btn:active {
+      transform: translateY(0);
+    }
+
+    .cursor-help {
+      cursor: help;
+    }
+
+    .pl-13 {
+      padding-left: 3.25rem;
+    }
+
+    /* ========== LOGIN/MAIN TOGGLE ========== */
+    #login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      width: 100vw; /* ✅ เพิ่ม */
+      position: fixed; /* ✅ เพิ่ม */
+      top: 0; /* ✅ เพิ่ม */
+      left: 0; /* ✅ เพิ่ม */
+      background: linear-gradient(to bottom right, #25408E, #4a69bd);
+      z-index: 9999; /* ✅ เพิ่ม */
+    }
+
+    #main-app {
+      display: none;
+      width: 100%; /* ✅ เพิ่ม */
+    }
+
+    #main-app.active {
+      display: flex;
+      width: 100%; /* ✅ เพิ่ม */
+    }
+
+    #login-container.hidden {
+      display: none;
+    }
+
+    /* ✅ Filters Container - บังคับให้อยู่บรรทัดเดียว */
+    .filters-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-item {
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .search-box {
+      width: 280px;
+      min-width: 280px;
+    }
+
+    .filter-divider {
+      width: 1px;
+      height: 2rem;
+      background-color: #e2e8f0;
+      flex-shrink: 0;
+    }
+
+    .filters-container::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .filters-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .filters-container::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 2px;
+    }
+
+    .filters-container::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    @media (max-width: 1023px) {
+      #sidebar {
+        transform: translateX(-100%) !important;  /* ✅ ซ่อนออกนอกจอตั้งแต่แรก */
+        position: fixed !important;
+        width: 240px !important;
+      }
+      
+      #sidebar.translate-x-0 {
+        transform: translateX(0) !important;  /* ✅ เปิดเมื่อกดปุ่ม hamburger */
+      }
+
+      #main-content {
+        width: 100% !important;
+        margin-left: 0 !important;
+        flex: 1 !important;
+      }
+      
+      #main-app {
+        display: block !important;
+      }
+    }
+
+    @media (min-width: 1024px) {
+      #main-app {
+        display: flex !important;
+      }
+      #sidebar {
+        position: relative !important;
+        transform: none !important;
+      }
+    }
+
+  </style>
+</head>
+
+<body class="flex min-h-screen">
+
+  <!-- ========================================== -->
+  <!-- LOGIN CONTAINER -->
+  <!-- ========================================== -->
+<div id="login-container">
+  <div class="fixed inset-0 z-0">
+    <img src="https://lh3.googleusercontent.com/d/1qU8HqCBb0hrUImzmhZmD67-BKHJSJZKG"
+         class="w-full h-full object-cover" alt="background">
+    <div class="absolute inset-0 bg-black/30"></div>
+  </div>
+
+  <main class="relative z-10 w-full max-w-md px-4">
+
+      <!-- Branding -->
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 backdrop-blur border border-white/20 mb-3 shadow-xl">
+          <span class="text-3xl">🚚</span>
+        </div>
+        <h1 class="text-2xl font-black text-white tracking-tight drop-shadow">OSP Booking System</h1>
+        <p class="text-white/60 text-xs mt-1">ระบบจัดการการจองรับ/ส่งสินค้า</p>
+      </div>
+
+      <section class="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+
+        <!-- Top tabs -->
+        <div class="px-5 pt-5">
+          <div class="flex gap-1.5 p-1 bg-white/10 rounded-2xl">
+            <button id="tab-login"
+              class="tab-btn flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-white/20 shadow"
+              onclick="switchView('login')">เข้าสู่ระบบ</button>
+            <button id="tab-register"
+              class="tab-btn flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white/60"
+              onclick="switchView('register')">สมัครสมาชิก</button>
+            <button id="tab-forgot"
+              class="tab-btn flex-1 px-3 py-2 rounded-xl text-xs font-bold text-white/60"
+              onclick="switchView('forgot')">เปลี่ยนรหัสผ่าน</button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="px-5 py-5">
+
+          <!-- Alert -->
+          <div id="alert" class="hidden fade-in mb-4 rounded-2xl border px-4 py-3 text-sm">
+            <div class="font-bold" id="alert-title">แจ้งเตือน</div>
+            <div id="alert-msg" class="mt-0.5"></div>
+          </div>
+
+          <!-- LOGIN VIEW -->
+          <div id="view-login" class="view active">
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">ID Name</label>
+                <input id="login-id" type="text" placeholder="เช่น 12345"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">รหัสผ่าน</label>
+                <input id="login-pass" type="password" placeholder="••••••••"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+
+              <button id="btn-login" onclick="handleLogin()"
+                class="mt-2 w-full rounded-2xl bg-primary text-white font-black py-3 text-sm hover:bg-secondary transition active:scale-[0.99] flex items-center justify-center gap-2 shadow-lg">
+                <span id="login-btn-text">เข้าสู่ระบบ</span>
+                <span id="login-spinner" class="hidden spinner"></span>
+              </button>
+
+              <div class="flex items-center justify-between text-xs mt-2">
+                <button class="text-white/50 hover:text-white font-semibold transition" onclick="switchView('forgot')">เปลี่ยนรหัสผ่าน?</button>
+                <button class="text-white/50 hover:text-white font-semibold transition" onclick="switchView('register')">ยังไม่มีบัญชี → สมัครสมาชิก</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- REGISTER VIEW -->
+          <div id="view-register" class="view">
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">โปรดตั้ง ID</label>
+                <input id="reg-id" type="text" placeholder="เช่น nice123"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-bold text-white/70 uppercase">ชื่อ</label>
+                  <input id="reg-first" type="text" placeholder="ชื่อ"
+                    class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+                </div>
+                <div>
+                  <label class="text-xs font-bold text-white/70 uppercase">นามสกุล</label>
+                  <input id="reg-last" type="text" placeholder="นามสกุล"
+                    class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-bold text-white/70 uppercase">อีเมล</label>
+                  <input id="reg-email" type="email" placeholder="name@company.com"
+                    class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+                </div>
+                <div>
+                  <label class="text-xs font-bold text-white/70 uppercase">เบอร์โทร</label>
+                  <input id="reg-phone" type="tel" placeholder="08xxxxxxxx"
+                    class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+                </div>
+              </div>
+
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">บริษัท</label>
+                <select id="reg-company" onchange="toggleDepartmentField()"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/30 transition">
+                  <option value="" class="text-slate-800">-- เลือกบริษัท --</option>
+                  <option value="DHL" class="text-slate-800">DHL</option>
+                  <option value="เก้าเลี้ยว" class="text-slate-800">เก้าเลี้ยว</option>
+                  <option value="TNV" class="text-slate-800">TNV</option>
+                  <option value="OSP" class="text-slate-800">OSP</option>
+                  <option value="TRL" class="text-slate-800">TRL</option>
+                </select>
+              </div>
+
+              <!-- ✅ Dropdown แผนก (แสดงเฉพาะตอนเลือก OSP) -->
+              <div id="reg-department-wrap" class="hidden">
+                <label class="text-xs font-bold text-white/70 uppercase">แผนก</label>
+                <select id="reg-department"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/30 transition">
+                  <option value="" class="text-slate-800">-- เลือกแผนก --</option>
+                  <option value="Supply Chain Officer" class="text-slate-800">Supply Chain Officer</option>
+                  <option value="Transportation" class="text-slate-800">Transportation</option>
+                  <option value="Warehouse" class="text-slate-800">Warehouse</option>
+                  <option value="Warehouse Team Billing" class="text-slate-800">Warehouse Team Billing</option>
+                  <option value="Warehouse Team Loading" class="text-slate-800">Warehouse Team Loading</option>
+                  <option value="Sales Agent" class="text-slate-800">Sales Agent</option>
+                  <option value="Sales LMT" class="text-slate-800">Sales LMT</option>
+                  <option value="Sales Strategy" class="text-slate-800">Sales Strategy</option>
+                  <option value="Sales MT" class="text-slate-800">Sales MT</option>
+                  <option value="IB" class="text-slate-800">IB</option>
+                  <option value="Customer Service" class="text-slate-800">Customer Service</option>
+                  <option value="Planning" class="text-slate-800">Planning</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">ตั้งรหัสผ่าน</label>
+                <input id="reg-pass" type="password" placeholder="อย่างน้อย 6 ตัว"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">ยืนยันรหัสผ่าน</label>
+                <input id="reg-pass2" type="password" placeholder="ยืนยันรหัสผ่าน"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+
+              <button id="btn-register" onclick="handleRegister()"
+                class="mt-2 w-full rounded-2xl bg-white text-slate-900 font-black py-3 text-sm hover:bg-white/90 transition active:scale-[0.99] flex items-center justify-center gap-2 shadow-lg">
+                <span id="reg-btn-text">สมัครสมาชิก</span>
+                <span id="reg-spinner" class="hidden spinner"></span>
+              </button>
+
+              <p class="text-xs text-white/40 mt-2">* สมัครแล้วสถานะจะเป็น Waiting รอผู้ดูแล Approve</p>
+            </div>
+          </div>
+
+          <!-- FORGOT VIEW -->
+          <div id="view-forgot" class="view">
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">ID NAME</label>
+                <input id="fp-id" type="text" placeholder="เช่น 12345"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">รหัสผ่านเดิม</label>
+                <input id="fp-oldpass" type="password" placeholder="กรอกรหัสผ่านเดิม"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">รหัสผ่านใหม่</label>
+                <input id="fp-pass" type="password" placeholder="ตั้งรหัสผ่านใหม่"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+              <div>
+                <label class="text-xs font-bold text-white/70 uppercase">ยืนยันรหัสผ่านใหม่</label>
+                <input id="fp-pass2" type="password" placeholder="ยืนยันรหัสผ่านใหม่"
+                  class="mt-1 w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/30 transition" />
+              </div>
+
+              <button id="btn-reset" onclick="handleResetPassword()"
+                class="mt-2 w-full rounded-2xl bg-primary text-white font-black py-3 text-sm hover:bg-secondary transition active:scale-[0.99] flex items-center justify-center gap-2 shadow-lg">
+                <span id="reset-btn-text">อัปเดตรหัสผ่าน</span>
+                <span id="reset-spinner" class="hidden spinner"></span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <p class="text-center text-white/40 text-xs mt-4">© 2026 OSP Booking System</p>
+    </main>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MAIN APP CONTAINER -->
+  <!-- ========================================== -->
+  <div id="main-app" class="flex min-h-screen w-full">
+
+  <!-- Sidebar Overlay (จอเล็กเท่านั้น) -->
+  <div id="sidebar-overlay"
+    class="fixed inset-0 z-40 hidden bg-black/40 backdrop-blur-[2px] lg:hidden"
+    onclick="closeSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar"
+    class="sidebar-transition sidebar-collapsed fixed inset-y-0 left-0 z-50 bg-primary text-white lg:relative lg:inset-auto"
+    style="width: 80px; flex-shrink: 0;">
+    <div class="flex flex-col h-full">
+      <!-- Header with Logo & Toggle -->
+      <div class="p-6 border-b border-white/10 flex items-center justify-between">
+        <div class="flex items-center gap-3 min-w-0">
+          <!-- Logo Icon -->
+          <div class="flex-shrink-0">
+            <i data-lucide="package-check" class="w-7 h-7"></i>
+          </div>
+          
+          <!-- Logo Text (ซ่อนตอน collapse) -->
+          <h1 class="sidebar-text sidebar-logo-text text-xl font-bold tracking-wider whitespace-nowrap">
+            OSP BOOKING
+          </h1>
+        </div>
+
+        <!-- ปุ่ม Toggle (จอใหญ่เท่านั้น) -->
+        <button 
+          onclick="toggleSidebarDesktop()"
+          class="sidebar-toggle-btn hidden lg:flex p-2 rounded-lg hover:bg-white/10 transition"
+          aria-label="Toggle sidebar"
+          title="ปิด/เปิด Sidebar">
+          <i data-lucide="chevron-left" class="w-5 h-5"></i>
+        </button>
+
+        <!-- ปุ่มปิด (จอเล็กเท่านั้น) -->
+        <button 
+          onclick="closeSidebar()"
+          class="lg:hidden p-2 rounded-lg hover:bg-white/10 transition"
+          aria-label="Close sidebar">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
+        <button onclick="showPage('dash')" class="nav-item group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors" id="nav-dash">
+          <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">รายการ</span>
+        </button>
+
+        <!-- ✅ Dashboard Accordion -->
+        <div id="nav-dashboard-group">
+          <!-- ปุ่มหลัก -->
+          <button onclick="toggleDashboardMenu()"
+            id="nav-dashboard-btn"
+            class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+            <i data-lucide="bar-chart-2" class="w-5 h-5 flex-shrink-0"></i>
+            <span class="sidebar-text ml-3 flex-1 text-left">Dashboard</span>
+            <i id="nav-dashboard-arrow" data-lucide="chevron-down" class="sidebar-text w-4 h-4 transition-transform"></i>
+          </button>
+
+          <!-- Submenu -->
+          <div id="nav-dashboard-submenu" class="hidden pl-4 space-y-1">
+            <button onclick="showPage('dashboard')"
+              id="nav-dashboard-sub"
+              class="nav-item group flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+              <i data-lucide="layout-dashboard" class="w-4 h-4 flex-shrink-0"></i>
+              <span class="sidebar-text ml-3">Dashboard</span>
+            </button>
+            <button onclick="showPage('daily-dashboard')"
+              id="nav-daily-dashboard"
+              class="nav-item hidden group flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+              <i data-lucide="pie-chart" class="w-4 h-4 flex-shrink-0"></i>
+              <span class="sidebar-text ml-3">Daily Dashboard</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Register (Admin Only) -->
+        <button
+          id="nav-register"
+          onclick="showPage('register')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="qr-code" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Register</span>
+        </button>
+
+        <!-- Confirm Billing (Admin Only) -->
+        <button
+          id="nav-confirm-loading"
+          onclick="showPage('confirm-loading')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="package-check" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Confirm Billing</span>
+        </button>
+
+        <!-- Confirm Loading (Admin Only) -->
+        <button
+          id="nav-confirm-loading-new"
+          onclick="showPage('confirm-loading-new')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="truck" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Confirm Loading</span>
+        </button>
+
+        <!-- Number Check-in (Admin Only) -->
+        <button
+          id="nav-number-checkin"
+          onclick="showPage('number-checkin')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="hash" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Number Check-in</span>
+        </button>
+
+        <!-- ✅ เพิ่มตรงนี้ Export (Admin Only) -->
+        <button
+          id="nav-export"
+          onclick="showPage('export')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="file-down" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Export</span>
+        </button>
+
+        <!-- ✅ Upload Data (Admin Only) -->
+        <button
+          id="nav-upload"
+          onclick="showPage('upload')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="file-up" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Upload Data</span>
+        </button>
+
+        <!-- ✅ ChainTrack -->
+        <button
+          id="nav-chaintrack"
+          onclick="showPage('chaintrack')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="git-branch" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">ChainTrack</span>
+        </button>
+
+        <div id="nav-booking-label" class="pt-4 pb-2">
+          <p class="sidebar-text px-4 text-[10px] font-semibold text-white/40 uppercase tracking-widest">สายงานการจอง</p>
+        </div>
+
+        <button onclick="showPage('ay-booking')" class="nav-item group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors" id="nav-ay">
+          <i data-lucide="truck" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">AY Domestic</span>
+        </button>
+
+        <button onclick="showPage('ay-export-booking')" class="nav-item group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors" id="nav-ay-export">
+          <i data-lucide="ship" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">AY Export</span>
+        </button>
+
+        <button onclick="showPage('rj-booking')" class="nav-item group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors" id="nav-rj">
+          <i data-lucide="container" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">RJ Domestic</span>
+        </button>
+
+        <button onclick="showPage('ay-oem-booking')" class="nav-item group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors" id="nav-ay-oem">
+          <i data-lucide="package-open" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">AY OEM & Transfer</span>
+        </button>
+
+        <button onclick="showPage('ay-foc-booking')" class="nav-item group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors" id="nav-ay-foc">
+          <i data-lucide="gift" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">AY FOC & CN</span>
+        </button>
+
+        <!-- Admin (ซ่อนก่อน) -->
+        <button
+          id="nav-admin"
+          onclick="showPage('admin')"
+          class="nav-item hidden group flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg hover:bg-white/10 transition-colors">
+          <i data-lucide="shield" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">Admin Panel</span>
+        </button>
+
+      </nav>
+
+      <div class="p-4 border-t border-white/10">
+        <button onclick="logout()" class="flex items-center w-full px-4 py-3 text-sm font-medium text-white/70 rounded-lg hover:bg-danger/20 hover:text-white transition-colors">
+          <i data-lucide="log-out" class="w-5 h-5 flex-shrink-0"></i>
+          <span class="sidebar-text ml-3">ออกจากระบบ</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main id="main-content" class="flex-1 flex flex-col min-w-0 overflow-hidden w-full">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between lg:px-8">
+      <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-md hover:bg-slate-100">
+        <i data-lucide="menu" class="text-slate-600"></i>
+      </button>
+
+      <div class="flex items-center gap-3">
+        <!-- Avatar -->
+        <div
+          id="user-avatar"
+          class="h-10 w-10 rounded-full bg-primary/10 text-primary
+                flex items-center justify-center font-bold text-sm select-none"
+        >
+          U
+        </div>
+
+        <!-- Name -->
+        <div class="leading-tight">
+          <p class="text-sm font-semibold text-slate-700" id="user-display">User Name</p>
+          <p class="text-xs text-slate-500" id="dept-display">Company</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar">
+
+      <!-- DASHBOARD PAGE -->
+      <section id="dash-page" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <!-- AY Domestic -->
+          <div id="ay-tile" onclick="showPage('ay-booking')" class="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="truck" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">AY Domestic</h3>
+            <p class="text-sm text-slate-500 mt-1">คลังสินค้า AY Domestic</p>
+          </div>
+
+          <!-- RJ Domestic -->
+          <div id="rj-tile" onclick="showPage('rj-booking')" class="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="container" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">RJ Domestic</h3>
+            <p class="text-sm text-slate-500 mt-1">คลังสินค้า RJ Domestic</p>
+          </div>
+
+          <!-- AY Export -->
+          <div id="ay-export-tile" onclick="showPage('ay-export-booking')" class="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="ship" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">AY Export</h3>
+            <p class="text-sm text-slate-500 mt-1">คลังสินค้า AY Export</p>
+          </div>
+
+          <!-- AY OEM & Transfer -->
+          <div id="ay-oem-tile" onclick="showPage('ay-oem-booking')" class="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="package-open" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">AY OEM & Transfer</h3>
+            <p class="text-sm text-slate-500 mt-1">คลังสินค้า AY OEM & Transfer</p>
+          </div>
+
+          <!-- AY FOC, CN & Other -->
+          <div id="ay-foc-tile" onclick="showPage('ay-foc-booking')" class="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="gift" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">AY FOC, CN & Other</h3>
+            <p class="text-sm text-slate-500 mt-1">คลังสินค้า AY FOC, CN & Other</p>
+          </div>
+
+          <!-- Admin Panel (แสดงเฉพาะ Admin: ให้ JS มาถอด hidden) -->
+          <div id="admin-tile" onclick="showPage('admin')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-slate-50 text-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="shield" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Admin Panel</h3>
+            <p class="text-sm text-slate-500 mt-1">Approve / Reject / Settings</p>
+          </div>
+
+          <!-- Dashboard Tile (Admin Only - ซ่อนไว้ก่อน) -->
+          <div id="dashboard-tile" onclick="showPage('dashboard')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="bar-chart-2" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Dashboard</h3>
+            <p class="text-sm text-slate-500 mt-1">สถิติและรายงาน</p>
+          </div>
+
+          <!-- Register Tile (Admin Only - ซ่อนไว้ก่อน) -->
+          <div id="register-tile" onclick="showPage('register')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-violet-50 text-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="qr-code" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Register</h3>
+            <p class="text-sm text-slate-500 mt-1">จัดการ QR Code</p>
+          </div>
+
+          <!-- Confirm Billing Tile (Admin Only) -->
+          <div id="confirm-loading-tile" onclick="showPage('confirm-loading')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="package-check" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Confirm Billing</h3>
+            <p class="text-sm text-slate-500 mt-1">ยืนยันการโหลดสินค้า</p>
+          </div>
+
+          <!-- Confirm Loading Tile (Admin Only) -->
+          <div id="confirm-loading-new-tile" onclick="showPage('confirm-loading-new')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="package-check" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Confirm Loading</h3>
+            <p class="text-sm text-slate-500 mt-1">ยืนยันการโหลดสินค้า</p>
+          </div>
+
+          <!-- Number Check-in Tile (Admin Only) -->
+          <div id="number-checkin-tile" onclick="showPage('number-checkin')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="hash" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Number Check-in</h3>
+            <p class="text-sm text-slate-500 mt-1">ดูรหัสเช็คอิน</p>
+          </div>
+
+          <!-- Export Tile (Admin Only) -->
+          <div id="export-tile" onclick="showPage('export')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="file-down" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Export</h3>
+            <p class="text-sm text-slate-500 mt-1">Export ข้อมูลเป็น Excel / CSV</p>
+          </div>
+
+          <!-- Upload Data Tile (Admin Only) -->
+          <div id="upload-tile" onclick="showPage('upload')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="file-up" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Upload Data</h3>
+            <p class="text-sm text-slate-500 mt-1">นำเข้าข้อมูลจากไฟล์</p>
+          </div>
+
+          <!-- ChainTrack Tile -->
+          <div id="chaintrack-tile" onclick="showPage('chaintrack')" class="hidden bg-white p-10 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group text-center">
+            <div class="w-20 h-20 bg-cyan-50 text-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+              <i data-lucide="git-branch" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">ChainTrack</h3>
+            <p class="text-sm text-slate-500 mt-1">ติดตาม Supply Chain</p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- BOOKING PAGE -->
+      <section id="booking-page" class="hidden space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 id="page-title" class="text-2xl font-bold text-slate-800 tracking-tight">Booking Management</h2>
+            <div class="flex items-center mt-1">
+              <span id="page-badge" class="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase">TYPE</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <i data-lucide="calendar" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+              <input type="date" id="book-date" onchange="fetchCapacity()" class="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none">
+            </div>
+            <button onclick="openBookingForm()" class="flex items-center px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-secondary transition-all shadow-sm active:scale-95">
+              <i data-lucide="plus" class="w-4 h-4 mr-2"></i> เพิ่มการจอง
+            </button>
+          </div>
+        </div>
+
+        <!-- Slots -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <!-- Header -->
+          <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+
+              <!-- Title -->
+              <h3 class="text-base font-bold text-slate-700">
+                เลือกช่วงเวลา
+              </h3>
+
+              <!-- Actions (Right) -->
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+
+                <!-- ดู slot วันนี้ -->
+                <button
+                  type="button"
+                  onclick="viewAllSlotsForSelectedDate()"
+                  class="h-10 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 text-[12px] font-bold hover:bg-slate-50 transition inline-flex items-center gap-2"
+                >
+                  <i data-lucide="list" class="w-4 h-4"></i>
+                  ดู Slot ทั้งหมด
+                </button>
+
+                <!-- เลือกบริษัทขนส่ง -->
+                <div class="relative w-[160px]">
+                  <select
+                    id="filter-company"
+                    class="h-10 w-full
+                          px-4 pr-9
+                          rounded-xl border border-slate-200 bg-white
+                          text-slate-700 text-[12px] font-bold
+                          text-center
+                          appearance-none
+                          focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="" disabled selected hidden>เลือกบริษัทขนส่ง</option>
+                    <option value="DHL">DHL</option>
+                    <option value="TNV">TNV</option>
+                    <option value="TRL">TRL</option>
+                    <option value="OSP">OSP</option>
+                    <option value="เก้าเลี้ยว">เก้าเลี้ยว</option>
+                  </select>
+
+                  <!-- ลูกศร -->
+                  <i
+                    data-lucide="chevron-down"
+                    class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                  ></i>
+                </div>
+
+                <!-- Search Shipment -->
+                <div class="relative w-[220px]">
+                  <input
+                    type="text"
+                    id="search-shipment"
+                    placeholder="ค้นหา Shipment"
+                    class="h-10 w-full pl-10 pr-4
+                          rounded-xl border border-slate-200 bg-white
+                          text-[12px] text-slate-700 font-semibold
+                          focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                  <i
+                    data-lucide="search"
+                    class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"
+                  ></i>
+                </div>
+
+                <!-- ✅ ปุ่มรีเซ็ต -->
+                <button
+                  type="button"
+                  onclick="resetFilters()"
+                  class="h-10 px-4 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 text-[12px] font-bold hover:bg-slate-200 transition inline-flex items-center gap-2"
+                  title="รีเซ็ตตัวกรอง"
+                >
+                  <i data-lucide="x-circle" class="w-4 h-4"></i>
+                  ล้างค่า
+                </button>
+
+                <!-- ✅ ปุ่ม Export Excel (Admin Only - ซ่อนไว้ก่อน) -->
+                <button
+                  id="btn-export-excel"
+                  type="button"
+                  onclick="exportToExcel()"
+                  class="hidden h-10 px-4 rounded-xl bg-emerald-600 border border-emerald-700 text-white text-[12px] font-bold hover:bg-emerald-700 transition inline-flex items-center gap-2 shadow-sm"
+                  title="Export เป็น Excel (Admin Only)"
+                >
+                  <i data-lucide="download" class="w-4 h-4"></i>
+                  Export Excel
+                </button>
+
+              </div>
+
+              </div>
+
+          </div>
+
+          <!-- Slots Container -->
+          <div
+            class="p-5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4"
+            id="slots-container"
+          ></div>
+        </div>
+
+
+        <!-- Slot Details (Professional + Compact) -->
+        <div id="slot-details-section"
+            class="hidden animate-slide-up bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+          <!-- Header -->
+          <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="font-bold text-sm text-slate-700 flex items-center">
+              <i data-lucide="info" class="w-5 h-5 mr-2 text-primary"></i>
+              รายการจองช่วงเวลา
+              <span id="viewing-time" class="ml-1 text-primary font-black"></span>
+            </h3>
+
+            <button onclick="closeDetails()"
+                    class="h-9 w-9 inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <!-- Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-[13px] text-left table-fixed">
+              <thead class="bg-gradient-to-r from-slate-50 to-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <!-- สถานะ -->
+                  <th class="px-5 py-3 text-center w-[150px]">
+                    <div class="inline-flex items-center gap-2 justify-center">
+                      <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <i data-lucide="activity" class="w-4 h-4 text-blue-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">สถานะ</span>
+                    </div>
+                  </th>
+
+                  <!-- Shipment / Pallet -->
+                  <th class="px-5 py-3 text-left w-[320px]">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                        <i data-lucide="package" class="w-4 h-4 text-purple-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">Shipment / Pallet</span>
+                    </div>
+                  </th>
+
+                  <!-- รถ / ทะเบียน -->
+                  <th class="px-5 py-3 text-left w-[220px]">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                        <i data-lucide="truck" class="w-4 h-4 text-emerald-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">รถ / ทะเบียน</span>
+                    </div>
+                  </th>
+
+                  <!-- บริษัทขนส่ง -->
+                  <th class="px-5 py-3 text-left w-[170px]">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                        <i data-lucide="building-2" class="w-4 h-4 text-amber-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">บริษัทขนส่ง</span>
+                    </div>
+                  </th>
+
+                  <!-- เบอร์ติดต่อ -->
+                  <th class="px-5 py-3 text-left w-[150px]">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
+                        <i data-lucide="phone" class="w-4 h-4 text-rose-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">เบอร์ติดต่อ</span>
+                    </div>
+                  </th>
+
+                  <!-- Customer -->
+                  <th class="px-4 py-3 text-center w-[150px]">
+                    <div class="inline-flex items-center gap-2 justify-center">
+                      <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                        <i data-lucide="user" class="w-4 h-4 text-indigo-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">Customer</span>
+                    </div>
+                  </th>
+
+                  <!-- รายละเอียด -->
+                  <th class="px-5 py-3 text-left w-[200px]">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+                        <i data-lucide="sticky-note" class="w-4 h-4 text-cyan-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">รายละเอียด</span>
+                    </div>
+                  </th>
+
+                  <!-- จัดการ -->
+                  <th class="px-5 py-3 text-center w-[140px]">
+                    <div class="inline-flex items-center gap-2 justify-center">
+                      <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                        <i data-lucide="settings" class="w-4 h-4 text-slate-600"></i>
+                      </div>
+                      <span class="text-xs uppercase tracking-wider">จัดการ</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody id="details-tbody" class="divide-y divide-slate-100">
+                <!-- JS จะเติมแถว -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State -->
+          <div id="details-empty"
+              class="hidden px-6 py-10 text-center text-slate-400 text-sm">
+            <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+            <p class="font-semibold">ไม่มีข้อมูลการจองในช่วงเวลานี้</p>
+          </div>
+        </div>
+
+
+
+        <!-- MODAL -->
+        <div id="booking-modal" class="fixed inset-0 z-[60] hidden flex items-start justify-center p-4 pt-6 modal-backdrop overflow-y-auto">
+          <!-- ✅ สำคัญ: max-h + flex-col + overflow ของ body -->
+          <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-w-2xl w-full animate-zoom-in max-h-[90vh] flex flex-col">
+            <div class="bg-primary px-6 py-4 text-white flex items-center justify-between">
+              <div class="flex items-center">
+                <i data-lucide="plus-circle" class="w-5 h-5 mr-2"></i>
+                <span class="font-bold text-lg tracking-wide">เพิ่มข้อมูลการจองคิว</span>
+              </div>
+              <button onclick="closeForm()" class="text-white/80 hover:text-white bg-white/10 p-1.5 rounded-full">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <!-- ✅ ตัวนี้คือส่วนเลื่อน -->
+            <div class="p-6 sm:p-8 space-y-5 overflow-y-auto flex-1">
+
+              <!-- ✅ NOTICE -->
+              <div id="booking-notice" class="bg-blue-50 border border-blue-200 text-slate-700 rounded-2xl p-4">
+                <h4 class="font-bold mb-1">โปรดทราบ : ช่วงเวลาการโหลดสินค้า 07:00 น - 22:00 น.</h4>
+                <ul class="list-disc list-outside pl-5 text-sm">
+                  <li><b>ช่วงเวลาการจอง Slot</b>
+                    <ul class="list-disc list-outside pl-5">
+                      <li>ตั้งแต่ได้รับ Shipment ถึง 23:59 น. ของวันที่ก่อนโหลดสินค้าสามารถจองได้ทุกเวลาของวัดถัดไป</li>
+                      <li>หากจองใน "วันปัจจุบัน" จะไม่สามารถจองช่วงเวลา 07:00 น. ถึง 09:00 น. ได้</li>
+                      <li>ไม่สามารถจอง "วันปัจจุบัน" ได้ หากเลยเวลา 09:00 น. ของวันนั้นๆ</li>
+                    </ul>
+                  </li>
+                  <li>กรณีรอบจองนั้นเต็ม โปรดหารอบจองใหม่อีกครั้ง</li>
+                  <li id="bookingDateRange" class="font-semibold text-primary hidden"></li>
+                </ul>
+              </div>
+
+              <!-- ✅ FORM -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+
+                <!-- สถานะงาน -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    สถานะงาน
+                  </label>
+                  <select id="job-status" class="form-input-balanced">
+                    <option value="" disabled selected hidden>-- เลือกสถานะงาน --</option>
+                    <option value="รับสินค้าออกจากคลัง">รับสินค้าออกจากคลัง</option>
+                    <option value="ส่งสินค้าเข้าคลัง">ส่งสินค้าเข้าคลัง</option>
+                  </select>
+                </div>
+
+                <!-- วันที่เข้ารับ/ส่ง -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    วันที่เข้ารับ / ส่งสินค้า
+                  </label>
+                  <input type="date" id="job-date" class="form-input-balanced">
+                </div>
+
+                <!-- Shipment -->
+                <div class="space-y-1.5 sm:col-span-2">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    เลข PO/Shipment (คั่นด้วย , ทุก 7 หลัก)
+                  </label>
+                  <input
+                    type="text"
+                    id="shipment-no"
+                    placeholder="เช่น 1234567,7654321"
+                    class="form-input-balanced font-mono"
+                  >
+                </div>
+
+                <!-- เวลา -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    ช่วงเวลา
+                  </label>
+
+                  <select
+                    id="truck-time-select"
+                    class="form-input-balanced text-slate-400 bg-slate-50 cursor-not-allowed"
+                    disabled
+                  >
+                    <!-- เติม option จาก JS -->
+                  </select>
+                </div>
+
+                <!-- ประเภทรถ -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    ประเภทรถ
+                  </label>
+                  <select
+                    id="truck-type"
+                    required
+                    onchange="handleTruckTypeChange()"
+                    class="form-input-balanced font-bold text-primary">
+                    <option value="" disabled selected hidden>-- เลือกประเภทรถ --</option>
+                    <option value="4W">4W (3 Pallets)</option>
+                    <option value="6W">6W (6 Pallets)</option>
+                    <option value="10W">10W (12 Pallets)</option>
+                    <option value="22W">22W (24 Pallets)</option>
+                  </select>
+                </div>
+
+                <!-- ทะเบียนรถ -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    ทะเบียนรถ
+                  </label>
+                  <input
+                    type="text"
+                    id="truck-no"
+                    placeholder="ทะเบียนรถ"
+                    class="form-input-balanced"
+                  >
+                </div>
+
+                <!-- ทะเบียนพ่วง -->
+                <div
+                  id="trailer-no-container"
+                  class="hidden space-y-1.5 animate-slide-up">
+                  <label class="text-xs font-bold text-primary uppercase label-required">
+                    ทะเบียนพ่วง
+                  </label>
+                  <input
+                    type="text"
+                    id="trailer-no"
+                    placeholder="ทะเบียนพ่วง"
+                    class="form-input-balanced border-blue-200"
+                  >
+                </div>
+
+                <!-- บริษัทขนส่ง -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    บริษัทขนส่ง
+                  </label>
+                  <select id="vendor" onchange="handleVendorChange()" class="form-input-balanced">
+                    <option value="" disabled selected hidden>-- เลือกบริษัทขนส่ง --</option>
+                    <option value="DHL">DHL</option>
+                    <option value="TNV">TNV</option>
+                    <option value="TRL">TRL</option>
+                    <option value="เก้าเลี้ยว">เก้าเลี้ยว</option>
+                    <option value="ลูกค้ารับเอง">ลูกค้ารับเอง</option>
+                    <option value="อื่นๆ">อื่นๆ</option>
+                  </select>
+                </div>
+
+                <!-- ✅ Customer Name (ใหม่) -->
+                <div class="space-y-1.5 sm:col-span-2">
+                  <label class="text-xs font-bold text-slate-500 uppercase">ชื่อลูกค้า</label>
+                  <select id="customer-name" class="form-input-balanced">
+                    <option value="" disabled selected hidden>-- โปรดรอสักครู่ กำลังโหลด... --</option>
+                  </select>
+                  <p class="text-[10px] text-slate-500">เลือกชื่อลูกค้าจากรายการ</p>
+                </div>
+
+                <!-- ✅ ชื่อ-นามสกุลผู้ขับ (แถวเดียวกับเบอร์โทร) -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    ชื่อ-นามสกุลผู้ขับ
+                  </label>
+                  <input
+                    type="text"
+                    id="driver-name"
+                    placeholder="เช่น สมชาย ใจดี"
+                    class="form-input-balanced"
+                  >
+                </div>
+
+                <!-- เบอร์โทร (แถวเดียวกับชื่อผู้ขับ) -->
+                <div class="space-y-1.5">
+                  <label class="text-xs font-bold text-slate-500 uppercase label-required">
+                    เบอร์โทรติดต่อ
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    placeholder="08x-xxxxxxx"
+                    class="form-input-balanced"
+                  >
+                </div>
+
+                <!-- บริษัทอื่น -->
+                <div
+                  id="vendor-other-container"
+                  class="hidden space-y-1.5 sm:col-span-2 animate-slide-up"
+                >
+                  <label class="text-xs font-bold text-primary uppercase label-required">
+                    ชื่อบริษัทขนส่งอื่นๆ
+                  </label>
+                  <input
+                    type="text"
+                    id="vendor-other"
+                    class="form-input-balanced border-blue-200"
+                  >
+                </div>
+
+                <!-- หมายเหตุ -->
+                <div class="space-y-1.5 sm:col-span-2">
+                  <label class="text-xs font-bold text-slate-500 uppercase">
+                    รายละเอียดเพิ่มเติม / หมายเหตุ
+                  </label>
+                  <textarea
+                    id="remark"
+                    rows="3"
+                    placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
+                    class="form-input-balanced resize-none"
+                  ></textarea>
+                </div>
+
+              </div>
+
+              <div class="pt-5 flex flex-col sm:flex-row gap-4 justify-end">
+                <button onclick="closeForm()" class="px-8 py-2.5 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-all text-sm">ยกเลิก</button>
+                <button onclick="confirmBooking()" id="btn-save" class="px-12 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-secondary shadow-lg shadow-primary/20 transition-all active:scale-95 text-sm flex items-center justify-center min-w-[160px]">
+                  <span>บันทึกข้อมูล</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================
+          CONFIRM LOADING PAGE
+          ======================================== -->
+      <div id="confirm-loading-page" class="page hidden">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800 tracking-tight">✅ Confirm Billing</h2>
+              <p class="text-sm text-slate-500 mt-1">ยืนยัน Billing และเปลี่ยนสถานะเป็น Completed</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-violet-100 text-violet-700">
+                ADMIN ONLY
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6">
+          <div class="filters-container">
+            <!-- Label -->
+            <div class="filter-item flex items-center gap-2">
+              <i data-lucide="filter" class="w-4 h-4 text-violet-600"></i>
+              <span class="text-sm font-bold text-slate-700">ตัวกรอง:</span>
+            </div>
+
+            <!-- Service Filter -->
+            <select id="confirm-loading-service-filter" onchange="loadConfirmLoadingData(true)" 
+              class="filter-item px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold">
+              <option value="ALL">ทั้งหมด (Service)</option>
+              <option value="AY">AY Domestic</option>
+              <option value="RJ">RJ Domestic</option>
+              <option value="AY_EXPORT">AY Export</option>
+              <option value="AY_OEM">AY OEM & Transfer</option>
+              <option value="AY_FOC">AY FOC, CN & Other</option>
+            </select>
+
+            <!-- Date Filter -->
+            <input type="date" id="confirm-loading-date-filter" onchange="loadConfirmLoadingData(true)" 
+              class="filter-item px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold">
+
+            <!-- Divider -->
+            <div class="filter-divider"></div>
+
+            <!-- Search Label -->
+            <div class="filter-item flex items-center gap-2">
+              <i data-lucide="search" class="w-4 h-4 text-violet-600"></i>
+              <span class="text-sm font-bold text-slate-700">ค้นหา:</span>
+            </div>
+
+            <!-- Search Input -->
+            <div class="filter-item relative search-box">
+              <input 
+                type="text" 
+                id="confirm-loading-search-input" 
+                placeholder="Shipment / ทะเบียนรถ / ชื่อคนขับ..."
+                oninput="filterConfirmLoadingTable()"
+                class="w-full px-4 py-1.5 pl-10 text-sm border border-slate-200 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            </div>
+
+            <!-- Clear Search -->
+            <button 
+              onclick="clearConfirmLoadingSearch()" 
+              class="filter-item px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition inline-flex items-center gap-2"
+              title="ล้างการค้นหา">
+              <i data-lucide="x" class="w-4 h-4"></i>
+              ล้าง
+            </button>
+
+            <!-- Manual Refresh -->
+            <button onclick="loadConfirmLoadingData(true)" 
+              class="filter-item px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition inline-flex items-center gap-2"
+              title="รีเฟรชข้อมูล">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              รีเฟรช
+            </button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <!-- Table Header -->
+          <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="package-check" class="w-5 h-5 text-violet-600"></i>
+                <h3 class="text-lg font-bold text-slate-700">รายการรอยืนยันการโหลด</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Content -->
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="file-text" class="w-3 h-3"></i>
+                      สถานะงาน
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="package" class="w-3 h-3"></i>
+                      Shipment
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="truck" class="w-3 h-3"></i>
+                      ประเภทรถ
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="building" class="w-3 h-3"></i>
+                      บริษัทขนส่ง
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="clock" class="w-3 h-3"></i>
+                      ช่วงเวลา
+                    </div>
+                  </th>
+                  <!-- ✅ รวมทะเบียนรถ -->
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="car" class="w-3 h-3"></i>
+                      ทะเบียนรถ / รถพ่วง
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="user" class="w-3 h-3"></i>
+                      ผู้ขับ
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-center text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1 justify-center">
+                      <i data-lucide="activity" class="w-3 h-3"></i>
+                      สถานะ
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-center text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1 justify-center">
+                      <i data-lucide="check-square" class="w-3 h-3"></i>
+                      ยืนยัน
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="confirm-loading-table-body">
+                <tr>
+                  <td colspan="10" class="text-center py-8 text-slate-400">
+                    <i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 opacity-50 animate-spin"></i>
+                    <p class="text-sm">กำลังโหลดข้อมูล...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+      CONFIRM LOADING NEW PAGE
+      ======================================== -->
+      <div id="confirm-loading-new-page" class="page hidden">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800 tracking-tight">🚛 Confirm Loading</h2>
+              <p class="text-sm text-slate-500 mt-1">ยืนยันการโหลดสินค้า</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-violet-100 text-violet-700">
+                ADMIN ONLY
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">สายงาน</label>
+              <select id="confirm-loading-new-service"
+                onchange="loadConfirmLoadingNewData()"
+                class="form-input-balanced text-sm py-1.5">
+                <option value="ALL">ทั้งหมด</option>
+                <option value="AY">AY Domestic</option>
+                <option value="RJ">RJ Domestic</option>
+                <option value="AY_EXPORT">AY Export</option>
+                <option value="AY_OEM">AY OEM & Transfer</option>
+                <option value="AY_FOC">AY FOC & CN</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">วันที่</label>
+              <input type="date" id="confirm-loading-new-date"
+                class="form-input-balanced text-sm py-1.5">
+            </div>
+            <div class="flex items-end">
+              <button onclick="loadConfirmLoadingNewData()"
+                class="w-full py-1.5 text-sm font-bold bg-primary text-white rounded-lg hover:bg-secondary transition inline-flex items-center justify-center gap-2">
+                <i data-lucide="search" class="w-4 h-4"></i>
+                ค้นหา
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 text-center">
+            <p class="text-xs text-slate-500 mb-1">รอยืนยัน</p>
+            <p id="confirm-loading-new-pending-count" class="text-3xl font-black text-blue-600">-</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 text-center">
+            <p class="text-xs text-slate-500 mb-1">ยืนยันแล้ววันนี้</p>
+            <p id="confirm-loading-new-completed-count" class="text-3xl font-black text-green-600">-</p>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h4 class="font-bold text-slate-700 flex items-center gap-2">
+              <i data-lucide="list" class="w-4 h-4"></i>
+              รายการรอยืนยัน
+            </h4>
+            <button onclick="loadConfirmLoadingNewData()"
+              class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition inline-flex items-center gap-2">
+              <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+              รีเฟรช
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-3 text-left font-bold text-slate-600">Service</th>
+                  <th class="px-4 py-3 text-left font-bold text-slate-600">Shipment</th>
+                  <th class="px-4 py-3 text-left font-bold text-slate-600">ประเภทรถ</th>
+                  <th class="px-4 py-3 text-left font-bold text-slate-600">ทะเบียนรถ</th>
+                  <th class="px-4 py-3 text-left font-bold text-slate-600">บริษัทขนส่ง</th>
+                  <th class="px-4 py-3 text-center font-bold text-slate-600">Action</th>
+                </tr>
+              </thead>
+              <tbody id="confirm-loading-new-tbody" class="divide-y divide-slate-100">
+                <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">กรุณาเลือกสายงานและวันที่</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+      NUMBER CHECK-IN PAGE
+      ======================================== -->
+      <div id="number-checkin-page" class="page hidden">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800 tracking-tight">🔢 Number Check-in</h2>
+              <p class="text-sm text-slate-500 mt-1">ดูรหัสเช็คอินของคนขับแต่ละคน</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-violet-100 text-violet-700">
+                ADMIN ONLY
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6">
+          <div class="flex flex-col lg:flex-row items-center gap-3 flex-wrap">
+            <!-- Label -->
+            <div class="flex items-center gap-2">
+              <i data-lucide="filter" class="w-4 h-4 text-violet-600"></i>
+              <span class="text-sm font-bold text-slate-700">ตัวกรอง:</span>
+            </div>
+
+            <!-- Service Filter -->
+            <select id="number-checkin-service-filter" onchange="loadNumberCheckinData(true)" 
+              class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold">
+              <option value="ALL">ทั้งหมด (Service)</option>
+              <option value="AY">AY Domestic</option>
+              <option value="RJ">RJ Domestic</option>
+              <option value="AY_EXPORT">AY Export</option>
+              <option value="AY_OEM">AY OEM & Transfer</option>
+              <option value="AY_FOC">AY FOC, CN & Other</option>
+            </select>
+
+            <!-- Date Filter -->
+            <input type="date" id="number-checkin-date-filter" onchange="loadNumberCheckinData(true)" 
+              class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold">
+
+            <!-- Status Filter -->
+            <select id="number-checkin-status-filter" onchange="loadNumberCheckinData(true)" 
+              class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold">
+              <option value="ALL">ทั้งหมด (Status)</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+
+            <!-- Divider -->
+            <div class="hidden lg:block h-8 w-px bg-slate-200"></div>
+
+            <!-- Search Label -->
+            <div class="flex items-center gap-2">
+              <i data-lucide="search" class="w-4 h-4 text-violet-600"></i>
+              <span class="text-sm font-bold text-slate-700">ค้นหา:</span>
+            </div>
+
+            <!-- Search Input -->
+            <div class="relative flex-1 min-w-[200px] max-w-xs">
+              <input 
+                type="text" 
+                id="number-checkin-search-input" 
+                placeholder="Shipment / ทะเบียนรถ..."
+                oninput="filterNumberCheckinTable()"
+                class="w-full px-4 py-1.5 pl-10 text-sm border border-slate-200 rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+            </div>
+
+            <!-- Clear Search -->
+            <button 
+              onclick="clearNumberCheckinSearch()" 
+              class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition inline-flex items-center gap-2"
+              title="ล้างการค้นหา">
+              <i data-lucide="x" class="w-4 h-4"></i>
+              ล้าง
+            </button>
+
+            <!-- Manual Refresh -->
+            <button onclick="loadNumberCheckinData(true)" 
+              class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition inline-flex items-center gap-2"
+              title="รีเฟรชข้อมูล">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              รีเฟรช
+            </button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <!-- Table Header -->
+          <div class="px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="hash" class="w-5 h-5 text-violet-600"></i>
+                <h3 class="text-lg font-bold text-slate-700">รหัสเช็คอินของวันนี้</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Content -->
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="file-text" class="w-3 h-3"></i>
+                      สถานะงาน
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="package" class="w-3 h-3"></i>
+                      Shipment
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="truck" class="w-3 h-3"></i>
+                      ประเภทรถ
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="building" class="w-3 h-3"></i>
+                      บริษัทขนส่ง
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="clock" class="w-3 h-3"></i>
+                      ช่วงเวลา
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="car" class="w-3 h-3"></i>
+                      ทะเบียนรถ / รถพ่วง
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-left text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1">
+                      <i data-lucide="user" class="w-3 h-3"></i>
+                      ผู้ขับ
+                    </div>
+                  </th>
+                  <th class="py-3 px-3 text-center text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                    <div class="flex items-center gap-1 justify-center">
+                      <i data-lucide="key" class="w-3 h-3"></i>
+                      รหัสเช็คอิน
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="number-checkin-table-body">
+                <tr>
+                  <td colspan="8" class="text-center py-8 text-slate-400">
+                    <i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 opacity-50 animate-spin"></i>
+                    <p class="text-sm">กำลังโหลดข้อมูล...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= UPLOAD PAGE ================= -->
+      <div id="upload-page" class="hidden p-4 lg:p-6 space-y-6">
+
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row gap-4">
+          <div class="lg:w-1/3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-slate-800">
+                📤 Upload Data
+              </h2>
+              <span class="px-2 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 rounded-full">
+                SCO / CS
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">นำเข้าข้อมูล SO / DO / Billing</p>
+          </div>
+        </div>
+
+        <!-- Upload Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- Traditional Trade -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 bg-blue-50 border-b border-blue-200">
+              <h3 class="text-sm font-bold text-blue-700 flex items-center gap-2">
+                <i data-lucide="store" class="w-4 h-4"></i>
+                Traditional Trade
+              </h3>
+              <p class="text-xs text-blue-500 mt-0.5">TT — SO / DO / Billing</p>
+            </div>
+
+            <div class="p-5 space-y-4">
+
+              <!-- SO -->
+              <div>
+                <label class="text-xs font-bold text-slate-600 uppercase block mb-1.5">
+                  SO <span class="text-red-500">*</span>
+                </label>
+                <div id="tt-so-drop"
+                  onclick="document.getElementById('tt-so-input').click()"
+                  class="upload-drop-zone border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all">
+                  <i data-lucide="file-spreadsheet" class="w-6 h-6 mx-auto mb-1 text-slate-400"></i>
+                  <p id="tt-so-label" class="text-xs text-slate-400">คลิกหรือลากไฟล์มาวาง</p>
+                  <input type="file" id="tt-so-input" accept=".xlsx,.xls,.csv" class="hidden"
+                    onchange="handleFileSelect('tt-so', this)">
+                </div>
+              </div>
+
+              <!-- DO -->
+              <div>
+                <label class="text-xs font-bold text-slate-600 uppercase block mb-1.5">
+                  DO <span class="text-red-500">*</span>
+                </label>
+                <div id="tt-do-drop"
+                  onclick="document.getElementById('tt-do-input').click()"
+                  class="upload-drop-zone border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all">
+                  <i data-lucide="file-spreadsheet" class="w-6 h-6 mx-auto mb-1 text-slate-400"></i>
+                  <p id="tt-do-label" class="text-xs text-slate-400">คลิกหรือลากไฟล์มาวาง</p>
+                  <input type="file" id="tt-do-input" accept=".xlsx,.xls,.csv" class="hidden"
+                    onchange="handleFileSelect('tt-do', this)">
+                </div>
+              </div>
+
+              <!-- Billing -->
+              <div>
+                <label class="text-xs font-bold text-slate-600 uppercase block mb-1.5">
+                  Billing <span class="text-red-500">*</span>
+                </label>
+                <div id="tt-billing-drop"
+                  onclick="document.getElementById('tt-billing-input').click()"
+                  class="upload-drop-zone border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all">
+                  <i data-lucide="file-spreadsheet" class="w-6 h-6 mx-auto mb-1 text-slate-400"></i>
+                  <p id="tt-billing-label" class="text-xs text-slate-400">คลิกหรือลากไฟล์มาวาง</p>
+                  <input type="file" id="tt-billing-input" accept=".xlsx,.xls,.csv" class="hidden"
+                    onchange="handleFileSelect('tt-billing', this)">
+                </div>
+              </div>
+
+              <!-- Upload Button TT -->
+              <button onclick="uploadFiles('TT')"
+                class="w-full py-2.5 text-sm font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition inline-flex items-center justify-center gap-2">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                Upload Traditional Trade
+              </button>
+
+            </div>
+          </div>
+
+          <!-- Modern Trade -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 bg-purple-50 border-b border-purple-200">
+              <h3 class="text-sm font-bold text-purple-700 flex items-center gap-2">
+                <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                Modern Trade
+              </h3>
+              <p class="text-xs text-purple-500 mt-0.5">MT — SO / DO / Billing</p>
+            </div>
+
+            <div class="p-5 space-y-4">
+
+              <!-- SO -->
+              <div>
+                <label class="text-xs font-bold text-slate-600 uppercase block mb-1.5">
+                  SO <span class="text-red-500">*</span>
+                </label>
+                <div id="mt-so-drop"
+                  onclick="document.getElementById('mt-so-input').click()"
+                  class="upload-drop-zone border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all">
+                  <i data-lucide="file-spreadsheet" class="w-6 h-6 mx-auto mb-1 text-slate-400"></i>
+                  <p id="mt-so-label" class="text-xs text-slate-400">คลิกหรือลากไฟล์มาวาง</p>
+                  <input type="file" id="mt-so-input" accept=".xlsx,.xls,.csv" class="hidden"
+                    onchange="handleFileSelect('mt-so', this)">
+                </div>
+              </div>
+
+              <!-- DO -->
+              <div>
+                <label class="text-xs font-bold text-slate-600 uppercase block mb-1.5">
+                  DO <span class="text-red-500">*</span>
+                </label>
+                <div id="mt-do-drop"
+                  onclick="document.getElementById('mt-do-input').click()"
+                  class="upload-drop-zone border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all">
+                  <i data-lucide="file-spreadsheet" class="w-6 h-6 mx-auto mb-1 text-slate-400"></i>
+                  <p id="mt-do-label" class="text-xs text-slate-400">คลิกหรือลากไฟล์มาวาง</p>
+                  <input type="file" id="mt-do-input" accept=".xlsx,.xls,.csv" class="hidden"
+                    onchange="handleFileSelect('mt-do', this)">
+                </div>
+              </div>
+
+              <!-- Billing -->
+              <div>
+                <label class="text-xs font-bold text-slate-600 uppercase block mb-1.5">
+                  Billing <span class="text-red-500">*</span>
+                </label>
+                <div id="mt-billing-drop"
+                  onclick="document.getElementById('mt-billing-input').click()"
+                  class="upload-drop-zone border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all">
+                  <i data-lucide="file-spreadsheet" class="w-6 h-6 mx-auto mb-1 text-slate-400"></i>
+                  <p id="mt-billing-label" class="text-xs text-slate-400">คลิกหรือลากไฟล์มาวาง</p>
+                  <input type="file" id="mt-billing-input" accept=".xlsx,.xls,.csv" class="hidden"
+                    onchange="handleFileSelect('mt-billing', this)">
+                </div>
+              </div>
+
+              <!-- Upload Button MT -->
+              <button onclick="uploadFiles('MT')"
+                class="w-full py-2.5 text-sm font-bold bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition inline-flex items-center justify-center gap-2">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                Upload Modern Trade
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ================= CHAINTRACK PAGE ================= -->
+      <div id="chaintrack-page" class="hidden p-4 lg:p-6 space-y-6">
+
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row gap-4">
+          <div class="lg:w-1/3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-slate-800">
+                🔗 ChainTrack
+              </h2>
+              <span class="px-2 py-0.5 text-[10px] font-bold bg-cyan-100 text-cyan-700 rounded-full">
+                TRACKING
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">ติดตามสถานะ Supply Chain</p>
+          </div>
+
+          <!-- Search Box -->
+          <div class="flex-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+              กรอกเลข Sales Order
+            </label>
+            <div class="flex gap-3">
+              <input type="text" id="chaintrack-so-input"
+                placeholder="เช่น 1234567"
+                class="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400/30"
+                onkeydown="if(event.key==='Enter') searchChainTrack()">
+              <button onclick="searchChainTrack()"
+                class="px-5 py-2 bg-cyan-600 text-white text-sm font-bold rounded-lg hover:bg-cyan-700 transition inline-flex items-center gap-2">
+                <i data-lucide="search" class="w-4 h-4"></i>
+                ค้นหา
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div id="chaintrack-result"></div>
+
+      </div>
+
+      <!-- ✅ Export Page (Admin Only) -->
+      <div id="export-page" class="hidden p-6 space-y-6">
+
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+            <i data-lucide="file-down" class="w-5 h-5 text-emerald-600"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-slate-800">Export ข้อมูล</h2>
+            <p class="text-xs text-slate-500">เลือกเงื่อนไขแล้วกด Export</p>
+          </div>
+        </div>
+
+        <!-- Filter Card -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 class="text-sm font-bold text-slate-700 mb-4">เงื่อนไขการ Export</h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+
+            <!-- Service -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase">Service</label>
+              <select id="export-service" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100 transition">
+                <option value="ALL">ทั้งหมด</option>
+                <option value="AY">AY Domestic</option>
+                <option value="RJ">RJ Domestic</option>
+                <option value="AY_EXPORT">AY Export</option>
+                <option value="AY_OEM">AY OEM & Transfer</option>
+                <option value="AY_FOC">AY FOC & CN</option>
+              </select>
+            </div>
+
+            <!-- วันที่เริ่มต้น -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase">วันที่เริ่มต้น</label>
+              <input type="date" id="export-start-date"
+                class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100 transition">
+            </div>
+
+            <!-- วันที่สิ้นสุด -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase">วันที่สิ้นสุด</label>
+              <input type="date" id="export-end-date"
+                class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100 transition">
+            </div>
+
+            <!-- บริษัทขนส่ง -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase">บริษัทขนส่ง</label>
+              <select id="export-vendor" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-100 transition">
+                <option value="ALL">ทั้งหมด</option>
+                <option value="DHL">DHL</option>
+                <option value="TNV">TNV</option>
+                <option value="เก้าเลี้ยว">เก้าเลี้ยว</option>
+                <option value="TRL">TRL</option>
+                <option value="ลูกค้ารับเอง">ลูกค้ารับเอง</option>
+              </select>
+            </div>
+
+            <!-- ✅ ปุ่ม Export Excel -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase opacity-0">.</label>
+              <button onclick="runExport('xlsx')"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 active:scale-95 transition shadow-sm">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                Export Excel
+              </button>
+            </div>
+
+            <!-- ✅ ปุ่ม Export CSV -->
+            <div class="space-y-1">
+              <label class="text-xs font-bold text-slate-500 uppercase opacity-0">.</label>
+              <button onclick="runExport('csv')"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 active:scale-95 transition shadow-sm">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+                Export CSV
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Preview Card -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-slate-700">ตัวอย่างข้อมูล</h3>
+            <span id="export-count" class="text-xs text-slate-400">ยังไม่ได้โหลดข้อมูล</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="bg-slate-50">
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">วันที่</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">Service</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">ช่วงเวลา</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">Shipment</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">Pallet</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">ประเภทรถ</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">ทะเบียนรถ</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">บริษัทขนส่ง</th>
+                  <th class="px-3 py-2 text-left font-bold text-slate-600">ลูกค้า</th>
+                </tr>
+              </thead>
+              <tbody id="export-preview-tbody">
+                <tr>
+                  <td colspan="9" class="px-3 py-8 text-center text-slate-400">
+                    กดปุ่ม Export เพื่อดูตัวอย่างข้อมูล
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ADMIN PAGE -->
+      <section id="admin-page" class="hidden space-y-4">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Admin Panel</h2>
+              <p class="text-sm text-slate-500 mt-1">จัดการระบบ / Approve / Settings</p>
+            </div>
+
+            <span class="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-700">
+              ADMIN TOOLS
+            </span>
+          </div>
+        </div>
+
+        <!-- Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <!-- Left: Menu -->
+          <div class="lg:col-span-4">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div class="p-4 border-b border-slate-100 bg-slate-50/60">
+                <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <i data-lucide="settings" class="w-4 h-4 text-slate-500"></i>
+                  เมนูการจัดการ
+                </h3>
+              </div>
+
+              <div class="p-4 space-y-2">
+                <!-- Register -->
+                <button id="admin-btn-register"
+                  onclick="openAdminTab('register')"
+                  class="admin-tab-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <i data-lucide="user-plus" class="w-5 h-5"></i>
+                    </div>
+                    <div class="text-left">
+                      <div class="font-bold text-slate-800">Register</div>
+                      <div class="text-xs text-slate-500">อนุมัติ / ปฏิเสธผู้สมัคร</div>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                </button>
+
+                <!-- Capacity -->
+                <button id="admin-btn-capacity"
+                  onclick="openAdminTab('capacity')"
+                  class="admin-tab-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <i data-lucide="gauge" class="w-5 h-5"></i>
+                    </div>
+                    <div class="text-left">
+                      <div class="font-bold text-slate-800">Capacity</div>
+                      <div class="text-xs text-slate-500">กำหนด max / ปิด-เปิด slot</div>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                </button>
+
+                <!-- Holiday -->
+                <button id="admin-btn-holiday"
+                  onclick="openAdminTab('holiday')"
+                  class="admin-tab-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <i data-lucide="calendar-off" class="w-5 h-5"></i>
+                    </div>
+                    <div class="text-left">
+                      <div class="font-bold text-slate-800">Holiday</div>
+                      <div class="text-xs text-slate-500">ตั้งวันหยุด / ปิดรับจอง</div>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                </button>
+
+                <!-- System Close -->
+                <button id="admin-btn-system-close"
+                  onclick="openAdminTab('system-close')"
+                  class="admin-tab-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition">
+                  <div class="flex items-center gap-3">
+                    <div class="h-10 w-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                      <i data-lucide="shield-off" class="w-5 h-5"></i>
+                    </div>
+                    <div class="text-left">
+                      <div class="font-bold text-slate-800">ปิดระบบ</div>
+                      <div class="text-xs text-slate-500">ปิดการจองชั่วคราวรายวัน</div>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Content -->
+          <div class="lg:col-span-8">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div class="p-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+                <h3 id="admin-content-title" class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <i data-lucide="panel-right" class="w-4 h-4 text-slate-500"></i>
+                  เลือกเมนูเพื่อจัดการ
+                </h3>
+
+                <span id="admin-content-badge"
+                  class="hidden px-3 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-700">
+                </span>
+              </div>
+
+              <div id="admin-content" class="p-6 text-slate-600">
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6">
+                  <p class="font-bold text-slate-700">ยังไม่ได้เลือกเมนู</p>
+                  <p class="text-sm text-slate-500 mt-1">
+                    กดเลือกด้านซ้าย: Register / Capacity / Holiday
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ✅ DASHBOARD PAGE -->
+      <section id="dashboard-page" class="hidden space-y-6">
+
+        <!-- ================= HEADER SECTION ================= -->
+        <div class="flex flex-col lg:flex-row gap-4">
+
+          <!-- LEFT BOX : TITLE -->
+          <div class="lg:w-1/3 bg-white border border-slate-200 
+                      rounded-xl p-4 shadow-sm">
+
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-slate-800">
+                📊 Dashboard Analytics
+              </h2>
+              <span class="px-2 py-0.5 text-[10px] font-bold 
+                          bg-indigo-100 text-indigo-700 rounded-full">
+                ADMIN
+              </span>
+            </div>
+
+            <p class="text-xs text-slate-500 mt-2">
+              สถิติและการวิเคราะห์ข้อมูล
+            </p>
+          </div>
+
+          <!-- RIGHT BOX : FILTER -->
+          <div class="flex-1 bg-white border border-slate-200 
+                      rounded-xl p-4 shadow-sm">
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+
+              <!-- Service -->
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  สายงาน
+                </label>
+                <select id="dash-service" 
+                        onchange="loadDashboardData()" 
+                        class="form-input-balanced text-sm py-1.5">
+                  <option value="ALL">ทั้งหมด</option>
+                  <option value="AY">AY Domestic</option>
+                  <option value="RJ">RJ Domestic</option>
+                  <option value="AY_EXPORT">AY Export</option>
+                  <option value="AY_OEM">AY OEM & Transfer</option>
+                  <option value="AY_FOC">AY FOC, CN & Other</option>
+                </select>
+              </div>
+
+              <!-- Start -->
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  วันที่เริ่ม
+                </label>
+                <input type="date" 
+                      id="dash-start-date"
+                      onchange="validateDateRange()"
+                      class="form-input-balanced text-sm py-1.5">
+              </div>
+
+              <!-- End -->
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  วันที่สิ้นสุด
+                </label>
+                <input type="date" 
+                      id="dash-end-date"
+                      onchange="validateDateRange()"
+                      class="form-input-balanced text-sm py-1.5">
+              </div>
+
+              <!-- Search + Refresh -->
+              <div class="flex items-end gap-2">
+                <button 
+                  onclick="loadDashboardData()" 
+                  class="flex-1 py-1.5 text-sm font-bold
+                        bg-primary text-white rounded-lg
+                        hover:bg-secondary transition inline-flex items-center justify-center gap-2">
+                  <i data-lucide="search" class="w-4 h-4"></i>
+                  ค้นหา
+                </button>
+                <button 
+                  onclick="loadDashboardData()" 
+                  class="py-1.5 px-3 text-sm font-bold
+                        border border-slate-200 text-slate-600 rounded-lg
+                        hover:bg-slate-50 transition"
+                  title="รีเฟรช">
+                  <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- ================= OVERVIEW CARDS ================= -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+
+          <!-- LEFT SIDE -->
+          <div class="lg:col-span-1 bg-slate-100 border border-slate-200 p-4 rounded-xl">
+            <div class="grid grid-cols-2 gap-3 h-full">
+
+              <!-- Total -->
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm 
+                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 
+                          flex flex-col justify-between min-h-[100px]">
+
+                <div>
+                  <div class="text-xs text-slate-600 font-semibold mb-1">
+                    รวมทั้งหมด
+                  </div>
+                  <div class="text-xs text-slate-400">คัน</div>
+                </div>
+
+                <div class="flex items-baseline justify-between mt-auto">
+                  <div class="text-2xl font-black tracking-tight text-slate-800"
+                      id="dash-total-count">0</div>
+
+                  <div id="dash-total-change"
+                      class="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                    +0 (0%)
+                  </div>
+                </div>
+              </div>
+
+              <!-- Receive -->
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm 
+                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 
+                          flex flex-col justify-between min-h-[100px]">
+
+                <div>
+                  <div class="text-xs text-slate-600 font-semibold mb-1">
+                    รับสินค้า
+                  </div>
+                  <div class="text-xs text-slate-400">% ของทั้งหมด</div>
+                </div>
+
+                <div class="flex items-baseline gap-2 mt-auto">
+                  <div class="text-2xl font-black tracking-tight text-slate-800"
+                      id="dash-receive-count">0</div>
+
+                  <div class="text-xs font-bold text-slate-500">
+                    <span id="dash-receive-percent">0</span>%
+                  </div>
+                </div>
+              </div>
+
+              <!-- Send -->
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm 
+                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 
+                          flex flex-col justify-between min-h-[100px]">
+
+                <div>
+                  <div class="text-xs text-slate-600 font-semibold mb-1">
+                    ส่งสินค้า
+                  </div>
+                  <div class="text-xs text-slate-400">% ของทั้งหมด</div>
+                </div>
+
+                <div class="flex items-baseline gap-2 mt-auto">
+                  <div class="text-2xl font-black tracking-tight text-slate-800"
+                      id="dash-send-count">0</div>
+
+                  <div class="text-xs font-bold text-slate-500">
+                    <span id="dash-send-percent">0</span>%
+                  </div>
+                </div>
+              </div>
+
+              <!-- Capacity -->
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm 
+                          hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 
+                          flex flex-col justify-between min-h-[100px]">
+                <div>
+                  <div class="text-xs text-slate-600 font-semibold mb-1">Capacity Utilize</div>
+                  <div class="text-xs text-slate-400">แยกตาม Service</div>
+                </div>
+
+                <div id="dash-capacity-list" class="mt-2 space-y-1.5">
+                  <!-- โหลดข้อมูลจาก JS -->
+                  <div class="text-xs text-slate-400">กำลังโหลด...</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- RIGHT SIDE -->
+          <div class="lg:col-span-2 flex flex-col gap-3 bg-white border border-slate-200 p-4 rounded-xl">
+
+            <!-- Today Summary -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
+
+              <div class="bg-blue-50 rounded-xl p-3 border border-blue-200 
+                          hover:shadow-md transition-all duration-200 flex flex-col justify-center">
+                <div class="text-xs text-blue-600 font-semibold mb-1">
+                  ทั้งหมดวันนี้
+                </div>
+                <div class="text-3xl font-black tracking-tight text-blue-700 leading-none"
+                    id="dash-today-total">0</div>
+              </div>
+
+              <div class="bg-slate-50 rounded-xl p-3 border border-slate-200 
+                          hover:shadow-md transition-all duration-200 flex flex-col justify-center">
+                <div class="text-xs text-slate-600 font-semibold mb-1">
+                  รอเช็คอิน
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <div class="text-3xl font-black tracking-tight text-slate-700 leading-none"
+                      id="dash-today-waiting">0</div>
+                  <div class="text-xs font-bold text-slate-500"
+                      id="dash-today-waiting-percent">0%</div>
+                </div>
+              </div>
+
+              <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 
+                          hover:shadow-md transition-all duration-200 flex flex-col justify-center">
+                <div class="text-xs text-amber-600 font-semibold mb-1">
+                  ดำเนินการ
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <div class="text-3xl font-black tracking-tight text-amber-700 leading-none"
+                      id="dash-today-progress">0</div>
+                  <div class="text-xs font-bold text-amber-500"
+                      id="dash-today-progress-percent">0%</div>
+                </div>
+              </div>
+
+              <div class="bg-green-50 rounded-xl p-3 border border-green-200 
+                          hover:shadow-md transition-all duration-200 flex flex-col justify-center">
+                <div class="text-xs text-green-600 font-semibold mb-1">
+                  เสร็จสิ้น
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <div class="text-3xl font-black tracking-tight text-green-700 leading-none"
+                      id="dash-today-completed">0</div>
+                  <div class="text-xs font-bold text-green-500"
+                      id="dash-today-completed-percent">0%</div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Truck Type -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
+
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="text-xs text-slate-600 font-semibold mb-1">4 ล้อ</div>
+                <div class="text-2xl font-black tracking-tight text-slate-800 leading-none"
+                    id="dash-truck-4w">0</div>
+              </div>
+
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="text-xs text-slate-600 font-semibold mb-1">6 ล้อ</div>
+                <div class="text-2xl font-black tracking-tight text-slate-800 leading-none"
+                    id="dash-truck-6w">0</div>
+              </div>
+
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="text-xs text-slate-600 font-semibold mb-1">10 ล้อ</div>
+                <div class="text-2xl font-black tracking-tight text-slate-800 leading-none"
+                    id="dash-truck-10w">0</div>
+              </div>
+
+              <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="text-xs text-slate-600 font-semibold mb-1">22 ล้อ</div>
+                <div class="text-2xl font-black tracking-tight text-slate-800 leading-none"
+                    id="dash-truck-22w">0</div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ================= CHARTS ================= -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          <!-- Pie Chart -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 class="text-base font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-5 h-5 text-violet-600"></i>
+              สัดส่วนประเภทรถ
+            </h3>
+            <div class="relative h-96">
+              <canvas id="pie-chart"></canvas>
+            </div>
+          </div>
+
+          <!-- Bar Chart -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 class="text-base font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <i data-lucide="bar-chart-2" class="w-5 h-5 text-blue-600"></i>
+              จำนวนรถแต่ละประเภท
+            </h3>
+            <div class="relative h-96">
+              <canvas id="bar-chart"></canvas>
+            </div>
+          </div>
+
+          <!-- Vendor Chart -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 class="text-base font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <i data-lucide="bar-chart-2" class="w-5 h-5 text-emerald-600"></i>
+              จำนวน Pallet แยกตามผู้ขนส่ง
+            </h3>
+            <div class="relative h-96">
+              <canvas id="vendor-chart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ================= ONTIME / LATE TABLES ================= -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          <!-- Scheduled -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-amber-700 flex items-center gap-2">
+                <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
+                Scheduled
+              </h3>
+              <span id="scheduled-ontime-badge" class="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700">-</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600 cursor-pointer hover:bg-slate-100 select-none"
+                        onclick="sortOntimeTable('scheduled', 'shipment')">
+                      Shipment <span id="scheduled-sort-shipment" class="text-slate-400">↕</span>
+                    </th>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600">ทะเบียน</th>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600 cursor-pointer hover:bg-slate-100 select-none"
+                        onclick="sortOntimeTable('scheduled', 'time')">
+                      ช่วงเวลา <span id="scheduled-sort-time" class="text-slate-400">↕</span>
+                    </th>
+                    <th class="px-3 py-2 text-center font-bold text-slate-600">เวลาเช็คอิน</th>
+                    <th class="px-3 py-2 text-center font-bold text-slate-600">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody id="scheduled-ontime-tbody" class="divide-y divide-slate-100">
+                  <tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">กำลังโหลด...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- In Progress -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-blue-700 flex items-center gap-2">
+                <i data-lucide="loader" class="w-4 h-4 text-blue-600"></i>
+                In Progress
+              </h3>
+              <span id="inprogress-ontime-badge" class="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700">-</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600 cursor-pointer hover:bg-slate-100 select-none"
+                        onclick="sortOntimeTable('inprogress', 'shipment')">
+                      Shipment <span id="inprogress-sort-shipment" class="text-slate-400">↕</span>
+                    </th>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600">ทะเบียน</th>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600 cursor-pointer hover:bg-slate-100 select-none"
+                        onclick="sortOntimeTable('inprogress', 'time')">
+                      ช่วงเวลา <span id="inprogress-sort-time" class="text-slate-400">↕</span>
+                    </th>
+                    <th class="px-3 py-2 text-center font-bold text-slate-600">เวลาเช็คอิน</th>
+                    <th class="px-3 py-2 text-center font-bold text-slate-600">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody id="inprogress-ontime-tbody" class="divide-y divide-slate-100">
+                  <tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">กำลังโหลด...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Completed -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-green-50 border-b border-green-200 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-green-700 flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-green-600"></i>
+                Completed
+              </h3>
+              <span id="completed-ontime-badge" class="text-[10px] font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">-</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600 cursor-pointer hover:bg-slate-100 select-none"
+                        onclick="sortOntimeTable('completed', 'shipment')">
+                      Shipment <span id="completed-sort-shipment" class="text-slate-400">↕</span>
+                    </th>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600">ทะเบียน</th>
+                    <th class="px-3 py-2 text-left font-bold text-slate-600 cursor-pointer hover:bg-slate-100 select-none"
+                        onclick="sortOntimeTable('completed', 'time')">
+                      ช่วงเวลา <span id="completed-sort-time" class="text-slate-400">↕</span>
+                    </th>
+                    <th class="px-3 py-2 text-center font-bold text-slate-600">เวลาเช็คอิน</th>
+                    <th class="px-3 py-2 text-center font-bold text-slate-600">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody id="completed-ontime-tbody" class="divide-y divide-slate-100">
+                  <tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">กำลังโหลด...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ================= FULL SLOTS ================= -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-4 bg-red-50 border-b border-red-200 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-red-700 flex items-center gap-2">
+              <i data-lucide="alert-circle" class="w-5 h-5"></i>
+              Slot ที่เต็มแล้ว (<span id="full-slots-count">0</span> Slots)
+            </h3>
+          </div>
+
+          <div id="full-slots-container" class="divide-y divide-slate-100">
+            <!-- JS will inject here -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================
+      DAILY DASHBOARD PAGE
+      ======================================== -->
+      <div id="daily-dashboard-page" class="hidden p-4 lg:p-6 space-y-6">
+
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row gap-4">
+          <div class="lg:w-1/3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-slate-800">📊 Daily Dashboard</h2>
+              <span class="px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full">ADMIN</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">วิเคราะห์ข้อมูลรายวัน</p>
+          </div>
+
+          <!-- Filter -->
+          <div class="flex-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">วันที่เริ่ม</label>
+                <input type="date" id="daily-dash-start"
+                  class="form-input-balanced text-sm py-1.5">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">วันที่สิ้นสุด</label>
+                <input type="date" id="daily-dash-end"
+                  class="form-input-balanced text-sm py-1.5">
+              </div>
+              <div class="flex items-end">
+                <button onclick="loadDailyDashboard()"
+                  class="w-full py-1.5 text-sm font-bold bg-primary text-white rounded-lg hover:bg-secondary transition inline-flex items-center justify-center gap-2">
+                  <i data-lucide="search" class="w-4 h-4"></i>
+                  ค้นหา
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ✅ Cards Section -->
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+
+          <!-- Card 1: Sales Order -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Sales Order</p>
+            <p id="card-so-total" class="text-2xl font-black text-indigo-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 2: ส่งแล้ว -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">ส่งแล้ว</p>
+            <p id="card-sent" class="text-2xl font-black text-green-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 3: รอสร้าง Billing -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">รอสร้าง Billing</p>
+            <p id="card-wait-billing" class="text-2xl font-black text-orange-500">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 4: รอสร้าง Shipment -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">รอสร้าง Shipment</p>
+            <p id="card-wait-shipment" class="text-2xl font-black text-yellow-500">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 5: รอสร้าง DO -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">รอสร้าง DO</p>
+            <p id="card-wait-do" class="text-2xl font-black text-red-500">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+        </div>
+
+        <!-- ✅ Cards Section Row 2 -->
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+
+          <!-- Card 6: Shipment วันนี้ -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">Shipment วันนี้</p>
+            <p id="card-today-shipment" class="text-2xl font-black text-blue-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">เที่ยว</p>
+          </div>
+
+          <!-- Card 7: จัดส่งวันนี้ -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">จัดส่งวันนี้</p>
+            <p id="card-today-qty" class="text-2xl font-black text-blue-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 8: ลูกค้าเข้ารับวันนี้ -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">ลูกค้าเข้ารับวันนี้</p>
+            <p id="card-custc-qty" class="text-2xl font-black text-purple-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 9: AY วันนี้ -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">AY วันนี้</p>
+            <p id="card-ay-qty" class="text-2xl font-black text-emerald-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+          <!-- Card 10: RJ วันนี้ -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 text-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase mb-1">RJ วันนี้</p>
+            <p id="card-rj-qty" class="text-2xl font-black text-teal-600">-</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">ขวด</p>
+          </div>
+
+        </div>
+
+        <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- Pie Chart Agent -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
+            <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-600"></i>
+              จำนวนขวดแยกตาม Agent
+            </h3>
+            <div id="daily-agent-chart-wrap" class="flex items-center justify-center h-64">
+              <p class="text-slate-400 text-sm">กรุณาเลือกช่วงวันที่</p>
+            </div>
+          </div>
+
+          <!-- Summary Table -->
+          <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100">
+              <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <i data-lucide="table" class="w-4 h-4 text-indigo-600"></i>
+                สรุปรายละเอียด
+              </h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="px-4 py-2.5 text-left font-bold text-slate-600">Agent</th>
+                    <th class="px-4 py-2.5 text-right font-bold text-slate-600">จำนวนขวด</th>
+                    <th class="px-4 py-2.5 text-right font-bold text-slate-600">%</th>
+                  </tr>
+                </thead>
+                <tbody id="daily-agent-tbody" class="divide-y divide-slate-100">
+                  <tr><td colspan="3" class="px-4 py-8 text-center text-slate-400">กรุณาเลือกช่วงวันที่</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ✅ Today Table -->
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+              <i data-lucide="calendar-check" class="w-4 h-4 text-indigo-600"></i>
+              รายการจัดส่งวันนี้
+            </h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead class="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th class="px-4 py-2.5 text-left font-bold text-slate-600">ชื่อร้านค้า</th>
+                  <th class="px-4 py-2.5 text-left font-bold text-slate-600">ช่วงเวลา</th>
+                  <th class="px-4 py-2.5 text-right font-bold text-slate-600">จำนวนขวด</th>
+                  <th class="px-4 py-2.5 text-center font-bold text-slate-600">Status</th>
+                </tr>
+              </thead>
+              <tbody id="daily-today-table-wrap">
+                <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">กรุณาเลือกช่วงวันที่</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ✅ REGISTER PAGE -->
+      <section id="register-page" class="hidden space-y-4">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800 tracking-tight">📱 Register Management</h2>
+              <p class="text-sm text-slate-500 mt-1">จัดการ QR Code และการลงทะเบียนคนขับรถ</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <!-- ✅ Auto-refresh Indicator -->
+              <div class="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-green-100 text-green-700 border border-green-200">
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
+                AUTO-REFRESH
+              </div>
+              
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-violet-100 text-violet-700">
+                ADMIN ONLY
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content: QR Code + Table -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          
+          <!-- ✅ Left: QR Code Section -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div class="flex items-center gap-2 mb-4">
+              <i data-lucide="qr-code" class="w-5 h-5 text-violet-600"></i>
+              <h3 class="text-lg font-bold text-slate-700">QR Code สำหรับลงทะเบียน</h3>
+            </div>
+
+            <!-- QR Code Image -->
+            <div class="bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 p-8 flex flex-col items-center justify-center">
+              <img 
+                id="qr-code-image"
+                src="https://lh3.googleusercontent.com/d/1ShIpznkBDrW8vb1EzW3sOvEF7Cd9z__V"
+                alt="QR Code Register" 
+                class="w-full max-w-sm rounded-lg shadow-lg"
+                onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22300%22%3E%3Crect fill=%22%23e2e8f0%22 width=%22300%22 height=%22300%22/%3E%3Ctext fill=%22%2394a3b8%22 font-family=%22Arial%22 font-size=%2218%22 x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22%3ENo Image%3C/text%3E%3C/svg%3E'"
+              >
+            </div>
+
+            <!-- Instructions -->
+            <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div class="flex gap-3">
+                <i data-lucide="info" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"></i>
+                <div class="text-sm text-blue-800">
+                  <p class="font-semibold mb-2">วิธีใช้งาน:</p>
+                  <ol class="space-y-1 list-decimal list-inside text-xs">
+                    <li>พิมพ์หรือแสดง QR Code นี้ที่จุดลงทะเบียน</li>
+                    <li>คนขับรถสแกน QR Code ด้วยมือถือ</li>
+                    <li>กรอก Code 4 หลักที่ได้รับจากระบบจอง</li>
+                    <li>ระบบจะบันทึกเวลาลงทะเบียนอัตโนมัติ</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ✅ Right: Table Section -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <i data-lucide="table" class="w-5 h-5 text-violet-600"></i>
+                <h3 class="text-lg font-bold text-slate-700">รายการลงทะเบียนวันนี้</h3>
+              </div>
+              
+              <div class="flex items-center gap-2">
+                <!-- ✅ Manual Refresh Button -->
+                <button 
+                  onclick="loadRegisterData(true)" 
+                  class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition inline-flex items-center gap-2"
+                  title="รีเฟรชข้อมูล">
+                  <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+                
+                <!-- Service Filter -->
+                <select 
+                  id="register-service-filter" 
+                  onchange="loadRegisterData(true)" 
+                  class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-semibold">
+                  <option value="ALL">ทั้งหมด</option>
+                  <option value="AY">AY Domestic</option>
+                  <option value="RJ">RJ Domestic</option>
+                  <option value="AY_EXPORT">AY Export</option>
+                  <option value="AY_OEM">AY OEM & Transfer</option>
+                  <option value="AY_FOC">AY FOC, CN & Other</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- ✅ Stats Cards -->
+            <div class="grid grid-cols-4 gap-3 mb-4">
+              <!-- 1. ทั้งหมดวันนี้ -->
+              <div class="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                <div class="text-xs text-blue-600 font-semibold mb-1">ทั้งหมดวันนี้</div>
+                <div class="text-2xl font-black text-blue-700" id="register-total-count">0</div>
+              </div>
+              
+              <!-- 2. รอการเช็คอิน -->
+              <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <div class="text-xs text-slate-600 font-semibold mb-1">รอการเช็คอิน</div>
+                <div class="flex items-baseline gap-2">
+                  <div class="text-2xl font-black text-slate-700" id="register-waiting-count">0</div>
+                  <div class="text-xs font-bold text-slate-500" id="register-waiting-percent">0%</div>
+                </div>
+              </div>
+              
+              <!-- 3. กำลังดำเนินการ -->
+              <div class="bg-amber-50 rounded-xl p-3 border border-amber-200">
+                <div class="text-xs text-amber-600 font-semibold mb-1">กำลังดำเนินการ</div>
+                <div class="flex items-baseline gap-2">
+                  <div class="text-2xl font-black text-amber-700" id="register-progress-count">0</div>
+                  <div class="text-xs font-bold text-amber-500" id="register-progress-percent">0%</div>
+                </div>
+              </div>
+              
+              <!-- 4. เสร็จสมบูรณ์ -->
+              <div class="bg-green-50 rounded-xl p-3 border border-green-200">
+                <div class="text-xs text-green-600 font-semibold mb-1">เสร็จสมบูรณ์</div>
+                <div class="flex items-baseline gap-2">
+                  <div class="text-2xl font-black text-green-700" id="register-completed-count">0</div>
+                  <div class="text-xs font-bold text-green-500" id="register-completed-percent">0%</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ✅ Table Container -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-slate-200">
+                    <!-- ลำดับ -->
+                    <th class="text-center py-3 px-2 font-bold text-slate-600 text-xs uppercase">
+                      <div class="flex items-center justify-center gap-1">
+                        <i data-lucide="hash" class="w-3 h-3"></i>
+                        <span>ลำดับ</span>
+                      </div>
+                    </th>
+                    
+                    <!-- ช่วงเวลา -->
+                    <th class="text-left py-3 px-2 font-bold text-slate-600 text-xs uppercase">
+                      <div class="flex items-center gap-1">
+                        <i data-lucide="clock" class="w-3 h-3"></i>
+                        <span>ช่วงเวลา</span>
+                      </div>
+                    </th>
+                    
+                    <!-- เวลา Check-in -->
+                    <th class="text-center py-3 px-2 font-bold text-slate-600 text-xs uppercase">
+                      <div class="flex items-center justify-center gap-1">
+                        <i data-lucide="timer" class="w-3 h-3"></i>
+                        <span>Check-in</span>
+                      </div>
+                    </th>
+                    
+                    <!-- บริษัท/ทะเบียน -->
+                    <th class="text-left py-3 px-2 font-bold text-slate-600 text-xs uppercase">
+                      <div class="flex items-center gap-1">
+                        <i data-lucide="user" class="w-3 h-3"></i>
+                        <span>บริษัท/ทะเบียน</span>
+                      </div>
+                    </th>
+                    
+                    <!-- สถานะ -->
+                    <th class="text-center py-3 px-2 font-bold text-slate-600 text-xs uppercase">
+                      <div class="flex items-center justify-center gap-1">
+                        <i data-lucide="activity" class="w-3 h-3"></i>
+                        <span>สถานะ</span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="register-table-body">
+                  <!-- Loading State -->
+                  <tr>
+                    <td colspan="5" class="text-center py-8 text-slate-400">
+                      <i data-lucide="loader" class="w-8 h-8 mx-auto mb-2 opacity-50 animate-spin"></i>
+                      <p class="text-sm">กำลังโหลดข้อมูล...</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ================= POPUPS (ย้ายออกจาก booking-page แล้ว) ================= -->
+
+    <!-- ✅ Modern Popup: Booking Date Not Allowed -->
+    <div id="booking-rule-popup" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeBookingRulePopup()"></div>
+
+      <div class="relative w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-zoom-in">
+        <div class="px-6 py-4 bg-red-600 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+            <span class="font-black tracking-wide">ไม่สามารถจองได้</span>
+          </div>
+          <button onclick="closeBookingRulePopup()" class="p-2 rounded-full hover:bg-white/10">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-4 text-slate-700">
+            <p class="font-bold">
+              กรุณาเลือกวันที่ใหม่อีกครั้ง เนื่องจากไม่สามารถ Booking Slot ย้อนหลังได้ หรือ ล่วงหน้าที่กำหนดได้
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+              <div class="text-[11px] font-bold text-slate-500 uppercase">ณ ตอนนี้ (เวลาไทย)</div>
+              <div id="popup-now" class="mt-1 text-sm font-black text-slate-800"></div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+              <div class="text-[11px] font-bold text-slate-500 uppercase">โปรดจองตั้งแต่วันที่</div>
+              <div id="popup-range" class="mt-1 text-sm font-black text-primary"></div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-2">
+            <button onclick="closeBookingRulePopup()" class="px-6 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-slate-50">
+              ปิด
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ Modern Popup: Please Select Slot -->
+    <div id="select-slot-popup" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeSelectSlotPopup()"></div>
+
+      <div class="relative w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-zoom-in">
+        <div class="px-6 py-4 bg-primary text-white flex items-center gap-2">
+          <i data-lucide="clock" class="w-5 h-5"></i>
+          <span class="font-black tracking-wide">กรุณาเลือกช่วงเวลา</span>
+        </div>
+
+        <div class="p-6 space-y-4 text-slate-700">
+          <p class="font-semibold">กรุณาเลือกช่วงเวลาก่อนทำการจอง</p>
+          <p class="text-sm text-slate-500">
+            ระบบจำเป็นต้องทราบช่วงเวลาที่ต้องการ เพื่อคำนวณ Capacity และประเภทรถที่สามารถเลือกได้
+          </p>
+
+          <div class="flex justify-end pt-2">
+            <button onclick="closeSelectSlotPopup()"
+              class="px-6 py-2.5 rounded-xl font-bold text-white bg-primary hover:bg-secondary transition-all">
+              เข้าใจแล้ว
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Minimal Toast -->
+    <div id="toast"
+      class="fixed top-4 right-4 z-[999] hidden items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg">
+      <div id="toast-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-500"></div>
+      <div class="leading-tight">
+        <div id="toast-title" class="text-sm font-bold text-slate-800">สำเร็จ</div>
+        <div id="toast-msg" class="text-xs text-slate-500">บันทึกข้อมูลเรียบร้อย</div>
+      </div>
+    </div>
+
+    <!-- CENTER TOAST -->
+    <div id="center-toast" class="fixed inset-0 z-[999] hidden items-center justify-center">
+      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+
+      <div
+        id="center-toast-box"
+        class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 text-center
+              scale-95 opacity-0 transition-all duration-300"
+      >
+        <div
+          id="center-toast-icon"
+          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+        ></div>
+
+        <h3 id="center-toast-title" class="text-xl font-bold text-slate-800"></h3>
+        <p id="center-toast-message" class="mt-2 text-sm text-slate-600"></p>
+      </div>
+    </div>
+
+    <!-- EDIT BOOKING MODAL (Admin Only) -->
+    <div id="edit-booking-modal" class="fixed inset-0 z-[60] hidden flex items-start justify-center p-4 pt-6 modal-backdrop overflow-y-auto">
+      <div class="bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-w-2xl w-full animate-zoom-in max-h-[90vh] flex flex-col">
+        <div class="bg-blue-600 px-6 py-4 text-white flex items-center justify-between">
+          <div class="flex items-center">
+            <i data-lucide="edit" class="w-5 h-5 mr-2"></i>
+            <span class="font-bold text-lg tracking-wide">แก้ไขข้อมูลการจอง (Admin)</span>
+          </div>
+          <button onclick="closeEditModal()" class="text-white/80 hover:text-white bg-white/10 p-1.5 rounded-full">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="p-6 sm:p-8 space-y-5 overflow-y-auto flex-1">
+          <!-- Notice -->
+          <div class="bg-amber-50 border border-amber-200 text-slate-700 rounded-2xl p-4">
+            <h4 class="font-bold mb-1">⚠️ หมายเหตุสำหรับ Admin</h4>
+            <ul class="list-disc list-outside pl-5 text-sm">
+              <li>ฟิลด์ที่ <b>ล็อค</b> (ไม่สามารถแก้ไขได้): <b>ช่วงเวลา, วันที่, ประเภทรถ</b></li>
+              <li>สามารถแก้ไข: สถานะงาน, Shipment, ทะเบียนรถ, ทะเบียนพ่วง, บริษัทขนส่ง, ชื่อลูกค้า, เบอร์โทร, หมายเหตุ</li>
+              <li>การแก้ไขจะมีผลทันทีกับระบบ</li>
+            </ul>
+          </div>
+
+          <!-- ✅ Hidden fields -->
+          <input type="hidden" id="edit-uuid">
+          <input type="hidden" id="edit-service-type">
+
+          <!-- Form -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+            <!-- สถานะงาน -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-500 uppercase label-required">สถานะงาน</label>
+              <select id="edit-job-status" class="form-input-balanced">
+                <option value="" disabled selected hidden>-- เลือกสถานะงาน --</option>
+                <option value="รับสินค้าออกจากคลัง">รับสินค้าออกจากคลัง</option>
+                <option value="ส่งสินค้าเข้าคลัง">ส่งสินค้าเข้าคลัง</option>
+              </select>
+            </div>
+
+            <!-- วันที่ (LOCKED) -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-amber-600 uppercase flex items-center gap-2">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                วันที่เข้ารับ / ส่งสินค้า (ไม่สามารถแก้ไขได้)
+              </label>
+              <input type="date" id="edit-job-date" disabled class="form-input-balanced bg-amber-50 border-amber-200 text-slate-600 cursor-not-allowed">
+            </div>
+
+            <!-- Shipment -->
+            <div class="space-y-1.5 sm:col-span-2">
+              <label class="text-xs font-bold text-slate-500 uppercase label-required">เลข Shipment</label>
+              <input type="text" id="edit-shipment-no" placeholder="เช่น 1234567,7654321" class="form-input-balanced font-mono">
+            </div>
+
+            <!-- ⚠️ ช่วงเวลา (LOCKED) -->
+            <div class="space-y-1.5 sm:col-span-2">
+              <label class="text-xs font-bold text-amber-600 uppercase flex items-center gap-2">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                ช่วงเวลา (ไม่สามารถแก้ไขได้)
+              </label>
+              <input type="text" id="edit-time" disabled class="form-input-balanced bg-amber-50 border-amber-200 text-slate-600 cursor-not-allowed">
+            </div>
+
+            <!-- ประเภทรถ (LOCKED) -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-amber-600 uppercase flex items-center gap-2">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                ประเภทรถ (ไม่สามารถแก้ไขได้)
+              </label>
+              <select id="edit-truck-type" disabled class="form-input-balanced bg-amber-50 border-amber-200 text-slate-600 cursor-not-allowed font-bold">
+                <option value="" disabled selected hidden>-- เลือกประเภทรถ --</option>
+                <option value="4W">4W (3 Pallets)</option>
+                <option value="6W">6W (6 Pallets)</option>
+                <option value="10W">10W (12 Pallets)</option>
+                <option value="22W">22W (24 Pallets)</option>
+              </select>
+            </div>
+
+            <!-- ทะเบียนรถ -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-500 uppercase label-required">ทะเบียนรถ</label>
+              <input type="text" id="edit-truck-no" placeholder="ทะเบียนรถ" class="form-input-balanced">
+            </div>
+
+            <!-- ทะเบียนพ่วง -->
+            <div id="edit-trailer-no-container" class="hidden space-y-1.5 animate-slide-up">
+              <label class="text-xs font-bold text-primary uppercase label-required">ทะเบียนพ่วง</label>
+              <input type="text" id="edit-trailer-no" placeholder="ทะเบียนพ่วง" class="form-input-balanced border-blue-200">
+            </div>
+
+            <!-- บริษัทขนส่ง -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-500 uppercase label-required">บริษัทขนส่ง</label>
+              <select id="edit-vendor" onchange="handleEditVendorChange()" class="form-input-balanced">
+                <option value="" disabled selected hidden>-- เลือกบริษัทขนส่ง --</option>
+                <option value="DHL">DHL</option>
+                <option value="TNV">TNV</option>
+                <option value="TRL">TRL</option>
+                <option value="เก้าเลี้ยว">เก้าเลี้ยว</option>
+                <option value="ลูกค้ารับเอง">ลูกค้ารับเอง</option>
+                <option value="อื่นๆ">อื่นๆ</option>
+              </select>
+            </div>
+
+            <!-- เบอร์โทร -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-500 uppercase label-required">เบอร์โทรติดต่อ</label>
+              <input type="tel" id="edit-phone" placeholder="08x-xxxxxxx" class="form-input-balanced">
+            </div>
+
+            <!-- ✅ ชื่อลูกค้า (เพิ่มใหม่) -->
+            <div class="space-y-1.5 sm:col-span-2">
+              <label class="text-xs font-bold text-slate-500 uppercase">ชื่อลูกค้า</label>
+              <select id="edit-customer-name" class="form-input-balanced">
+                <option value="" disabled selected hidden>-- กำลังโหลด... --</option>
+              </select>
+              <p class="text-[10px] text-slate-500">เลือกชื่อลูกค้าจากรายการ (ไม่บังคับ)</p>
+            </div>
+
+            <!-- บริษัทอื่น -->
+            <div id="edit-vendor-other-container" class="hidden space-y-1.5 sm:col-span-2 animate-slide-up">
+              <label class="text-xs font-bold text-primary uppercase label-required">ชื่อบริษัทขนส่งอื่นๆ</label>
+              <input type="text" id="edit-vendor-other" class="form-input-balanced border-blue-200">
+            </div>
+
+            <!-- หมายเหตุ -->
+            <div class="space-y-1.5 sm:col-span-2">
+              <label class="text-xs font-bold text-slate-500 uppercase">รายละเอียดเพิ่มเติม / หมายเหตุ</label>
+              <textarea id="edit-remark" rows="3" placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)" class="form-input-balanced resize-none"></textarea>
+            </div>
+
+          </div>
+
+          <div class="pt-5 flex flex-col sm:flex-row gap-4 justify-end">
+            <button onclick="closeEditModal()" class="px-8 py-2.5 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-all text-sm">ยกเลิก</button>
+            <button onclick="confirmEditBooking()" id="btn-edit-save" class="px-12 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all active:scale-95 text-sm flex items-center justify-center min-w-[160px]">
+              <span>บันทึกการแก้ไข</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ LOADING POPUP -->
+    <div id="loading-popup" class="fixed inset-0 z-[999] hidden items-center justify-center">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+      
+      <div class="relative bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 text-center animate-zoom-in">
+        <!-- Dual Ring Spinner -->
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+          <div class="relative h-16 w-16">
+            <div class="absolute h-16 w-16 animate-spin rounded-full border-4 border-primary/20 border-t-primary"></div>
+            <div class="absolute h-16 w-16 animate-spin rounded-full border-4 border-transparent border-r-blue-400" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
+          </div>
+        </div>
+        
+        <!-- Text -->
+        <h3 id="loading-title" class="text-xl font-bold text-slate-800">กำลังโหลด...</h3>
+        <p id="loading-message" class="mt-2 text-sm text-slate-600">กรุณารอสักครู่</p>
+      </div>
+    </div>
+
+    <!-- ✅ BOOKING BLOCKED POPUP -->
+    <div id="booking-blocked-popup" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeBookingBlockedPopup()"></div>
+
+      <div class="relative w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-zoom-in">
+        <div class="px-6 py-4 bg-red-600 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="ban" class="w-5 h-5"></i>
+            <span class="font-black tracking-wide">ไม่สามารถจองได้</span>
+          </div>
+          <button onclick="closeBookingBlockedPopup()" class="p-2 rounded-full hover:bg-white/10">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-4 text-slate-700">
+            <p id="booking-blocked-message" class="font-bold text-red-700">
+              ไม่สามารถจองได้ในขณะนี้
+            </p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+            <div class="text-[11px] font-bold text-slate-500 uppercase">สามารถจองได้อีกครั้งเมื่อ</div>
+            <div id="booking-blocked-next" class="mt-2 text-lg font-black text-primary">
+              20:00 น (2 ทุ่ม)
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button onclick="closeBookingBlockedPopup()" class="px-6 py-2.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition-all">
+              เข้าใจแล้ว
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ EDIT USER MODAL (Admin Only) -->
+    <div id="edit-user-modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeEditUserModal()"></div>
+
+      <div class="relative bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-w-md w-full animate-zoom-in">
+        <div class="bg-blue-600 px-6 py-4 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="user-cog" class="w-5 h-5"></i>
+            <span class="font-bold text-lg">แก้ไขข้อมูล User</span>
+          </div>
+          <button onclick="closeEditUserModal()" class="text-white/80 hover:text-white bg-white/10 p-1.5 rounded-full">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+          <!-- Hidden Fields -->
+          <input type="hidden" id="edit-user-row">
+          
+          <!-- User ID (Read-only) -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500 uppercase">User ID</label>
+            <input type="text" id="edit-user-id" disabled class="form-input-balanced bg-slate-100 cursor-not-allowed">
+          </div>
+
+          <!-- Role -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500 uppercase">Role</label>
+            <select id="edit-user-role" class="form-input-balanced font-bold">
+              <option value="User">User</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </div>
+
+          <!-- Stop Booking -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500 uppercase">Stop Booking</label>
+            <select id="edit-user-stop" class="form-input-balanced font-bold">
+              <option value="">-- ไม่กำหนด --</option>
+              <option value="00:00 น">00:00 น (เที่ยงคืน)</option>
+              <option value="01:00 น">01:00 น (ตี 1)</option>
+              <option value="02:00 น">02:00 น (ตี 2)</option>
+              <option value="03:00 น">03:00 น (ตี 3)</option>
+              <option value="04:00 น">04:00 น (ตี 4)</option>
+              <option value="05:00 น">05:00 น (ตี 5)</option>
+              <option value="06:00 น">06:00 น (6 โมงเช้า)</option>
+              <option value="07:00 น">07:00 น (7 โมงเช้า)</option>
+              <option value="08:00 น">08:00 น (8 โมงเช้า)</option>
+              <option value="09:00 น">09:00 น (9 โมงเช้า)</option>
+              <option value="10:00 น">10:00 น (10 โมงเช้า)</option>
+              <option value="11:00 น">11:00 น (11 โมงเช้า)</option>
+              <option value="12:00 น">12:00 น (เที่ยง)</option>
+              <option value="13:00 น">13:00 น (บ่าย 1)</option>
+              <option value="14:00 น">14:00 น (บ่าย 2)</option>
+              <option value="15:00 น">15:00 น (บ่าย 3)</option>
+              <option value="16:00 น">16:00 น (4 โมงเย็น)</option>
+              <option value="17:00 น">17:00 น (5 โมงเย็น)</option>
+              <option value="18:00 น">18:00 น (6 โมงเย็น)</option>
+              <option value="19:00 น">19:00 น (1 ทุ่ม)</option>
+              <option value="20:00 น">20:00 น (2 ทุ่ม)</option>
+              <option value="21:00 น">21:00 น (3 ทุ่ม)</option>
+              <option value="22:00 น">22:00 น (4 ทุ่ม)</option>
+              <option value="23:00 น">23:00 น (5 ทุ่ม)</option>
+            </select>
+            <p class="text-[10px] text-slate-500">เวลาเริ่มห้ามจอง</p>
+          </div>
+
+          <!-- Start Booking -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500 uppercase">Start Booking</label>
+            <select id="edit-user-start" class="form-input-balanced font-bold">
+              <option value="">-- ไม่กำหนด --</option>
+              <option value="00:00 น">00:00 น (เที่ยงคืน)</option>
+              <option value="01:00 น">01:00 น (ตี 1)</option>
+              <option value="02:00 น">02:00 น (ตี 2)</option>
+              <option value="03:00 น">03:00 น (ตี 3)</option>
+              <option value="04:00 น">04:00 น (ตี 4)</option>
+              <option value="05:00 น">05:00 น (ตี 5)</option>
+              <option value="06:00 น">06:00 น (6 โมงเช้า)</option>
+              <option value="07:00 น">07:00 น (7 โมงเช้า)</option>
+              <option value="08:00 น">08:00 น (8 โมงเช้า)</option>
+              <option value="09:00 น">09:00 น (9 โมงเช้า)</option>
+              <option value="10:00 น">10:00 น (10 โมงเช้า)</option>
+              <option value="11:00 น">11:00 น (11 โมงเช้า)</option>
+              <option value="12:00 น">12:00 น (เที่ยง)</option>
+              <option value="13:00 น">13:00 น (บ่าย 1)</option>
+              <option value="14:00 น">14:00 น (บ่าย 2)</option>
+              <option value="15:00 น">15:00 น (บ่าย 3)</option>
+              <option value="16:00 น">16:00 น (4 โมงเย็น)</option>
+              <option value="17:00 น">17:00 น (5 โมงเย็น)</option>
+              <option value="18:00 น">18:00 น (6 โมงเย็น)</option>
+              <option value="19:00 น">19:00 น (1 ทุ่ม)</option>
+              <option value="20:00 น">20:00 น (2 ทุ่ม)</option>
+              <option value="21:00 น">21:00 น (3 ทุ่ม)</option>
+              <option value="22:00 น">22:00 น (4 ทุ่ม)</option>
+              <option value="23:00 น">23:00 น (5 ทุ่ม)</option>
+            </select>
+            <p class="text-[10px] text-slate-500">เวลาเริ่มจองได้อีกครั้ง</p>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-3 pt-4">
+            <button onclick="closeEditUserModal()" class="flex-1 px-6 py-2.5 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-all text-sm">
+              ยกเลิก
+            </button>
+            <button onclick="confirmEditUser()" class="flex-1 px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg transition-all text-sm">
+              บันทึก
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ LOGOUT CONFIRMATION POPUP -->
+    <div id="logout-popup" class="fixed inset-0 z-[999] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-md" onclick="closeLogoutPopup()"></div>
+
+      <div class="relative bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-w-md w-full animate-zoom-in">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-4 text-white">
+          <div class="flex items-center justify-center gap-2">
+            <i data-lucide="log-out" class="w-6 h-6"></i>
+            <span class="font-black text-xl tracking-wide">ออกจากระบบ</span>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="p-8 text-center space-y-6">
+          <!-- รูปรถ (Animated) -->
+          <div class="relative">
+            <div class="animate-bounce-slow">
+              <svg class="w-32 h-32 mx-auto text-slate-300" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+              </svg>
+            </div>
+            
+            <!-- Icon ออกจากระบบ -->
+            <div class="absolute -bottom-2 -right-2 bg-red-500 rounded-full p-3 shadow-lg animate-pulse">
+              <i data-lucide="arrow-right" class="w-5 h-5 text-white"></i>
+            </div>
+          </div>
+
+          <!-- ข้อความ -->
+          <div class="space-y-2">
+            <h3 class="text-2xl font-black text-slate-800">ต้องการออกจากระบบ?</h3>
+            <p class="text-slate-600">คุณจะต้อง Login อีกครั้งเพื่อเข้าใช้งาน</p>
+          </div>
+
+          <!-- User Info -->
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+            <div class="flex items-center justify-center gap-3">
+              <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                <i data-lucide="user" class="w-5 h-5 text-white"></i>
+              </div>
+              <div class="text-left">
+                <div id="logout-user-name" class="font-bold text-slate-800">-</div>
+                <div id="logout-user-id" class="text-xs text-slate-500">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex gap-3">
+            <button 
+              onclick="closeLogoutPopup()"
+              class="flex-1 px-6 py-3 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all active:scale-95">
+              ยกเลิก
+            </button>
+            <button 
+              onclick="confirmLogout()"
+              class="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 text-white font-bold hover:from-red-700 hover:to-orange-700 shadow-lg shadow-red-600/30 transition-all active:scale-95">
+              ออกจากระบบ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ HOLIDAY POPUP -->
+    <div id="holiday-popup" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeHolidayPopup()"></div>
+      <div class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div class="px-6 py-4 bg-red-600 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="calendar-off" class="w-5 h-5"></i>
+            <span class="font-black">ปิดทำการ</span>
+          </div>
+          <button onclick="closeHolidayPopup()" class="p-2 rounded-full hover:bg-white/10">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+        <div class="p-6 space-y-4 text-center">
+          <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <i data-lucide="calendar-off" class="w-8 h-8 text-red-600"></i>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800 text-lg" id="holiday-popup-date"></p>
+            <p class="text-slate-500 text-sm mt-1">วันนี้ปิดทำการ ไม่สามารถจองได้</p>
+          </div>
+          <button onclick="closeHolidayPopup()"
+            class="w-full px-6 py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition">
+            รับทราบ
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ DELETE HOLIDAY POPUP -->
+    <div id="delete-holiday-popup" class="fixed inset-0 z-[90] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeDeleteHolidayPopup()"></div>
+      <div class="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div class="px-6 py-4 bg-red-600 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i data-lucide="trash-2" class="w-5 h-5"></i>
+            <span class="font-black">ยืนยันการลบ</span>
+          </div>
+          <button onclick="closeDeleteHolidayPopup()" class="p-2 rounded-full hover:bg-white/10">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+        <div class="p-6 space-y-4 text-center">
+          <div class="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <i data-lucide="trash-2" class="w-7 h-7 text-red-600"></i>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800">ต้องการลบวันหยุดนี้?</p>
+            <p class="text-slate-500 text-sm mt-1" id="delete-holiday-popup-date"></p>
+          </div>
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <button onclick="closeDeleteHolidayPopup()"
+              class="py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition">
+              ยกเลิก
+            </button>
+            <button onclick="confirmDeleteHoliday()"
+              class="py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition">
+              ลบเลย
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Close Popup -->
+    <div id="system-close-popup" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeSystemClosePopup()"></div>
+      <div class="relative bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full text-center z-10">
+        <div class="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+          <i data-lucide="shield-off" class="w-8 h-8 text-red-600"></i>
+        </div>
+        <h3 class="text-lg font-black text-slate-800 mb-2">ระบบปิดชั่วคราว</h3>
+        <p class="text-sm text-slate-500 mb-1">ระบบจองถูกปิดชั่วคราววันนี้</p>
+        <p class="text-sm text-red-500 font-semibold mb-5">กรุณาติดต่อเจ้าหน้าที่</p>
+        <button onclick="closeSystemClosePopup()"
+          class="w-full py-3 rounded-2xl bg-red-600 text-white font-black text-sm hover:bg-red-700 transition">
+          รับทราบ
+        </button>
+      </div>
+    </div>
+
+    <!-- ✅ Confirm Loading New Popup -->
+    <div id="confirm-loading-new-popup" class="fixed inset-0 z-[999] hidden items-center justify-center">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeConfirmLoadingNewPopup()"></div>
+      <div class="relative bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 text-center animate-zoom-in max-w-sm mx-4">
+        <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <i data-lucide="package-check" class="w-8 h-8 text-blue-600"></i>
+        </div>
+        <h3 class="text-xl font-bold text-slate-800 mb-2">ยืนยันการโหลดสินค้า</h3>
+        <p class="text-sm text-slate-500 mb-6">คุณต้องการยืนยันรายการนี้ใช่ไหม?</p>
+        <div class="flex gap-3">
+          <button onclick="closeConfirmLoadingNewPopup()"
+            class="flex-1 py-2.5 text-sm font-bold border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition">
+            ยกเลิก
+          </button>
+          <button onclick="executeConfirmLoadingNew()"
+            class="flex-1 py-2.5 text-sm font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition">
+            ยืนยัน
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>

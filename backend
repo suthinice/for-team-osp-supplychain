@@ -1,0 +1,5108 @@
+/**
+ * ===== การตั้งค่า และคอนสแตนท์สำหรับการจอง (AY/RJ) =====
+ */
+const SHEET_NAME = "Sheet1";
+const SUNDAY_OVERRIDE_SHEET_NAME = "ชีต3";
+const TIMEZONE = "Asia/Bangkok";
+const CAPACITY_SHEET_NAME = "Sheet2"; // ชื่อชีตที่คุณใช้เก็บ Capacity
+const DEFAULT_CAPACITY = 96;          // ถ้าช่อง capacity ว่าง/ไม่ใช่ตัวเลข
+
+// ===== REGISTER SYSTEM (Sheet1) =====
+const REGISTER_SS_ID = '1SnHOlYLIYLC-pN3t_zvnE1sGnuS9lGNrqBf9Cc3vx_w';
+const REGISTER_SHEET_NAME = 'Sheet1';
+
+const SS_CONFIG = {
+  AY: "12RHZLVDADXZ6SeG4ClZeKAxR6-aTQzHQhSVA8uSVQgw",
+  RJ: "1XqcDyR4WQcdf77Fjjul3QuxMcMPwRqVuwOfqxpoumuQ",
+  AY_EXPORT: "1umGVeAGEN3EBTh6S0lvjIjkCCmr82R_cIh7jcZCAbZA",
+  AY_OEM: "1akOZW5Y08CqiqLnmLwCmoxgzrcfSiQb1FEVucyZ8lFE",      // ✅ AY OEM and Transfer
+  AY_FOC: "1q0UYfb8ab6WIxe-dVMLOj1LqS0YBO0hEqnRbdRYx3Ns"       // ✅ AY FOC, CN and Other
+};
+
+const ALL_TIME_SLOTS = [
+  '00:00 น. - 01:00 น.','01:00 น. - 02:00 น.','02:00 น. - 03:00 น.','03:00 น. - 04:00 น.','04:00 น. - 05:00 น.','05:00 น. - 06:00 น.',
+  '06:00 น. - 07:00 น.','07:00 น. - 08:00 น.','08:00 น. - 09:00 น.', '09:00 น. - 10:00 น.', '10:00 น. - 11:00 น.',
+  '11:00 น. - 12:00 น.', '12:00 น. - 13:00 น.', '13:00 น. - 14:00 น.',
+  '14:00 น. - 15:00 น.', '15:00 น. - 16:00 น.', '16:00 น. - 17:00 น.',
+  '17:00 น. - 18:00 น.', '18:00 น. - 19:00 น.', '19:00 น. - 20:00 น.',
+  '20:00 น. - 21:00 น.', '21:00 น. - 22:00 น.','22:00 น. - 23:00 น.', '23:00 น. - 00:00 น.'
+];
+
+const ALL_TIME_SLOTS_EXPORT = [
+  '07:00 น. - 08:30 น.', '08:30 น. - 10:00 น.', '10:00 น. - 11:30 น.', '11:30 น. - 13:00 น.',
+  '13:00 น. - 14:30 น.', '14:30 น. - 16:00 น.', '16:00 น. - 17:30 น.',
+  '17:30 น. - 19:00 น.', '19:00 น. - 20:30 น.', '20:30 น. - 22:00 น.',
+  '22:00 น. - 00:00 น.'
+];
+
+function getTimeSlotsForService(serviceType) {
+  return serviceType === 'AY_EXPORT' ? ALL_TIME_SLOTS_EXPORT : ALL_TIME_SLOTS;
+}
+
+function doGet(e) {
+  const params = e && e.parameter ? e.parameter : {};
+  const page = params.page || 'main';
+
+  if (page === 'dashboard-ay') {
+    return HtmlService.createHtmlOutputFromFile('dashboardAYDomestic')
+      .setTitle('AY Domestic Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  if (page === 'register') {
+    return HtmlService.createHtmlOutputFromFile('register')
+      .setTitle('ลงทะเบียนเข้าระบบ - OSP Booking')
+      .setFaviconUrl('https://twemoji.maxcdn.com/v/latest/72x72/1f69a.png')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  if (page === 'index') {
+    return HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('OSP Booking')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  // Default
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('OSP Booking System')
+    .setFaviconUrl('https://twemoji.maxcdn.com/v/latest/72x72/1f69a.png')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+
+/**
+ * ===== Helpers =====
+ */
+function getTz() {
+  return TIMEZONE || Session.getScriptTimeZone();
+}
+
+function parseDateString(dateString) {
+  if (!dateString) return null;
+
+  const s = String(dateString).trim();
+
+  // ✅ กรณี yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-').map(n => parseInt(n, 10));
+    return new Date(y, m - 1, d);
+  }
+
+  // ✅ กรณี MM/DD/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [m, d, y] = s.split('/').map(n => parseInt(n, 10));
+    return new Date(y, m - 1, d);
+  }
+
+  // ✅ fallback (เผื่อกรณีเป็น Date object หรือ format อื่น)
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  // ❌ แปลงไม่ได้จริง ๆ
+  return null;
+}
+
+
+function sanitizePhone(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits ? ("'" + digits) : "";
+}
+
+function calculatePalletValue(type) {
+  if (!type) return 0;
+  if (String(type).includes('4W') || String(type).includes('4 ล้อ')) return 3;
+  if (String(type).includes('6W') || String(type).includes('6 ล้อ')) return 6;
+  if (String(type).includes('10W') || String(type).includes('10 ล้อ')) return 12;
+  if (String(type).includes('22W') || String(type).includes('พ่วง')) return 24;
+  return 0;
+}
+
+/**
+ * อนุญาตวันอาทิตย์หรือไม่:
+ * - ถ้าไม่ใช่อาทิตย์ => true
+ * - ถ้าเป็นอาทิตย์ => ดูใน ชีต3 ว่ามีวันนั้นและสถานะ "เปิด" หรือไม่
+ */
+function isSundayAllowed(deliveryDate, ssId) {
+  // ✅ ใช้ getDay() (Local) เพื่อไม่หลุดวันเพราะ UTC
+  if (deliveryDate.getDay() !== 0) return true;
+
+  const sheet = SpreadsheetApp.openById(ssId).getSheetByName(SUNDAY_OVERRIDE_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() <= 1) return false;
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  const target = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate()).getTime();
+
+  return values.some(r => (r[0] instanceof Date) &&
+    (new Date(r[0].getFullYear(), r[0].getMonth(), r[0].getDate()).getTime() === target) &&
+    String(r[1] || "").trim() === 'เปิด'
+  );
+}
+
+function getSlotCapacities(serviceType, dateString) {
+  try {
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { capacities: {}, rawData: [] };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { capacities: {}, rawData: [] };
+
+    const tz = getTz();
+    const dateObj = parseDateString(dateString);
+    const formattedDate = Utilities.formatDate(dateObj, tz, "yyyy-MM-dd");
+
+    // ✅ โหลด Capacity จาก Sheet2 ตามวัน
+    const capacityMap = loadCapacityMapForDate_(ss, dateObj);
+
+    const data = sheet.getDataRange().getValues();
+
+    // column index (0-based)
+    const colDetail = 0;
+    const colStatus = 1;
+    const colShipment = 2;
+    const colTruckType = 3;
+    const colDate = 4;
+    const colVendor = 5;
+    const colTime = 6;
+    const colPhone = 9;
+    const colPallet = 10;
+    const colTruckNo = 12;
+    const colTrailerNo = 13;
+
+    const capacities = {};
+    const list = [];
+
+    // init ทุก slot ให้โชว์ box เสมอ
+    getTimeSlotsForService(serviceType).forEach(slot => {
+      const maxCap = (capacityMap[slot] != null)
+        ? capacityMap[slot]
+        : DEFAULT_CAPACITY;
+
+      capacities[slot] = {
+        totalPallets: 0,
+        count: 0,
+        max: maxCap
+      };
+    });
+
+    for (let i = 1; i < data.length; i++) {
+      const cellDate = data[i][colDate];
+
+      let rowDate = "";
+      if (cellDate instanceof Date) {
+        rowDate = Utilities.formatDate(cellDate, tz, "yyyy-MM-dd");
+      } else if (cellDate) {
+        rowDate = String(cellDate).split("T")[0];
+      }
+
+      if (rowDate !== formattedDate) continue;
+
+      const rowTime = String(data[i][colTime] || "").trim();
+      if (!capacities[rowTime]) continue;
+
+      const pallets = Number(data[i][colPallet]) || 0;
+
+      capacities[rowTime].totalPallets += pallets;
+      capacities[rowTime].count += 1;
+
+      list.push({
+        uuid: String(data[i][7] || ''),
+        status: String(data[i][colStatus] || ''),
+        shipment: String(data[i][colShipment] || ''),
+        pallets: pallets,
+        truckType: String(data[i][colTruckType] || ''),
+        truckNo: String(data[i][colTruckNo] || ''),          // ✅ บังคับเป็น String
+        trailerNo: (() => {                                   // ✅ แปลง Date เป็น String
+          const val = data[i][colTrailerNo];
+          if (!val) return '';
+          if (val instanceof Date) return Utilities.formatDate(val, getTz(), 'dd/MM/yyyy');
+          return String(val);
+        })(),
+        company: String(data[i][colVendor] || ''),
+        phone: String(data[i][colPhone] || ''),
+        remark: String(data[i][colDetail] || ''),
+        time: rowTime,
+        customerName: String(data[i][15] || '')
+      });
+    }
+
+    return { capacities, rawData: list };
+
+  } catch (error) {
+    throw new Error("Server Error: " + error.toString());
+  }
+}
+
+
+function isSundayAllowed(deliveryDate, ssId) {
+  // ไม่ใช่วันอาทิตย์ => อนุญาต
+  if (deliveryDate.getDay() !== 0) return true;
+
+  const ss = SpreadsheetApp.openById(ssId);
+
+  // ✅ รองรับหลายชื่อ: Sheet3 / ชีต3 (เพิ่มชื่ออื่นได้ถ้าคุณใช้ชื่อแบบอื่น)
+  const possibleNames = ["Sheet3", "Sheet 3"];
+  let sheet = null;
+  for (const name of possibleNames) {
+    sheet = ss.getSheetByName(name);
+    if (sheet) break;
+  }
+  if (!sheet) return false; // ไม่เจอชีต => ถือว่าปิด
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false; // ไม่มีข้อมูล => ปิด
+
+  // อ่าน A2:B (วันที่, สถานะ)
+  const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+
+  // เทียบ “เฉพาะวัน” ไม่สนเวลา
+  const target = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate()).getTime();
+
+  for (const [dateCell, statusCell] of values) {
+    let rowTime = null;
+
+    // A เป็น Date
+    if (dateCell instanceof Date) {
+      rowTime = new Date(dateCell.getFullYear(), dateCell.getMonth(), dateCell.getDate()).getTime();
+    } else if (dateCell) {
+      // A เป็นข้อความ เช่น 2026-01-24 หรือ 24/01/2026 (เผื่อไว้)
+      const s = String(dateCell).trim();
+      let d = null;
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const [y, m, da] = s.split("-").map(n => parseInt(n, 10));
+        d = new Date(y, m - 1, da);
+      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+        const [da, m, y] = s.split("/").map(n => parseInt(n, 10));
+        d = new Date(y, m - 1, da);
+      }
+
+      if (d) rowTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    }
+
+    if (rowTime === null) continue;
+
+    if (rowTime === target) {
+      const status = String(statusCell || "").trim();
+      // ✅ วันอาทิตย์จะ “จองได้” เฉพาะเมื่อสถานะ = เปิด
+      return status === "เปิด";
+    }
+  }
+
+  // ไม่พบวันนั้นในชีต => ปิด
+  return false;
+}
+
+function checkTimeSlotCapacity(deliveryDate, timeSlot, ss) {
+  // ss = SpreadsheetApp.openById(ssId) จะส่งมาก็ได้ เพื่อไม่ต้องเปิดซ้ำ
+  const tz = getTz();
+  const spreadsheet = ss || SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.getSheets()[0];
+  if (!sheet) return 0;
+
+  const formattedDate = Utilities.formatDate(deliveryDate, tz, "yyyy-MM-dd");
+
+  // column index (0-based) ตามโครงคุณ: E=4, G=6, K=10
+  const colDate = 4;
+  const colTime = 6;
+  const colPallet = 10;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 15).getValues();
+
+  let total = 0;
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i];
+
+    // date
+    const cellDate = r[colDate];
+    let rowDate = "";
+    if (cellDate instanceof Date) rowDate = Utilities.formatDate(cellDate, tz, "yyyy-MM-dd");
+    else if (cellDate) rowDate = String(cellDate).split("T")[0];
+
+    if (rowDate !== formattedDate) continue;
+
+    // time
+    const rowTime = String(r[colTime] || "").trim();
+    if (rowTime !== String(timeSlot).trim()) continue;
+
+    // pallets
+    total += Number(r[colPallet]) || 0;
+  }
+  return total;
+}
+
+
+function getWeekdayColumnIndex_(dateObj) {
+  // Monday=1 ... Sunday=7
+  const day = dateObj.getDay(); // Sun=0..Sat=6
+  const iso = day === 0 ? 7 : day; // Sun -> 7
+  // Sheet2: A=slot, B=Mon, C=Tue, ... H=Sun
+  // B คือคอลัมน์ที่ 2 => index = 2 + (iso-1)
+  return 2 + (iso - 1);
+}
+
+function loadCapacityMapForDate_(ss, dateObj) {
+  const sheet = ss.getSheetByName(CAPACITY_SHEET_NAME);
+  const map = {};
+
+  if (!sheet) return map;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return map;
+
+  const weekdayCol = getWeekdayColumnIndex_(dateObj);
+
+  // อ่าน A2:A และคอลัมน์ของวันนั้น ๆ
+  const slots = sheet.getRange(2, 1, lastRow - 1, 1).getValues(); // A
+  const caps  = sheet.getRange(2, weekdayCol, lastRow - 1, 1).getValues(); // B..H
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = String(slots[i][0] || "").trim();
+    if (!slot) continue;
+
+    const raw = caps[i][0];
+    const cap = (typeof raw === "number")
+      ? raw
+      : (raw !== "" && raw != null && !isNaN(Number(raw))) ? Number(raw) : null;
+
+    // ถ้า cap เป็น 0 => เต็มทันที
+    // ถ้า cap ว่าง/ไม่ใช่ตัวเลข => ใช้ DEFAULT_CAPACITY
+    map[slot] = (cap === null) ? DEFAULT_CAPACITY : cap;
+  }
+
+  return map;
+}
+
+function saveBookingData(data) {
+  try {
+    const tz = getTz();
+    const ssId = SS_CONFIG[data.serviceType];
+    if (!ssId) return { success: false, message: "serviceType ไม่ถูกต้อง" };
+
+    const bookingDateStr = (data.jobDate && String(data.jobDate).trim())
+      ? String(data.jobDate).trim()
+      : String(data.date || "").trim();
+
+    if (!bookingDateStr) return { success: false, message: "กรุณาเลือกวันที่" };
+    if (!data.time) return { success: false, message: "กรุณาเลือกช่วงเวลา" };
+
+    const deliveryDate = parseDateString(bookingDateStr);
+
+    // ✅ 1) ตรวจสอบ cutoff 09:00 (ยกเว้น AY_EXPORT)
+    const now = new Date();
+    const bangkokNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const currentHour = bangkokNow.getHours();
+    const todayStr = Utilities.formatDate(bangkokNow, 'Asia/Bangkok', 'yyyy-MM-dd');
+
+    const isAyExport = (data.serviceType === 'AY_EXPORT');
+    const isUnlimited = String(data.bookingPermission || '').trim() === 'ตลอดเวลา'; // ✅ เพิ่ม
+
+    if (!isAyExport && !isUnlimited && bookingDateStr === todayStr && currentHour >= 9) {
+      return { success: false, message: 'ไม่สามารถจองวันนี้ได้ เนื่องจากเลยเวลา 09:00 น.' };
+    }
+
+    // ✅ เปิด SS ครั้งเดียว ใช้ต่อทุกที่
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { success: false, message: "ไม่พบชีตสำหรับบันทึกข้อมูล" };
+
+    // ✅ 2) เช็ค Holiday (Sheet3) — Frontend เช็ค Cache แล้ว Backend เช็คซ้ำเป็น Safety net
+    if (isHoliday(ssId, bookingDateStr)) {
+      return { success: false, message: 'ปิดทำการในวันที่เลือก ไม่สามารถจองได้' };
+    }
+
+    // ✅ 3) กฎวันอาทิตย์
+    if (!isSundayAllowed(deliveryDate, ssId)) {
+      return { success: false, message: "วันหยุดทำการ (โปรดเลือกวันทำการปกติ)" };
+    }
+
+    // ✅ 4) บริษัทขนส่ง
+    let finalVendor = data.vendor || "";
+    let otherVendor = "";
+    if (data.vendor === "อื่นๆ") {
+      finalVendor = data.vendorOther || "อื่นๆ";
+      otherVendor = data.vendorOther || "";
+      if (!otherVendor) return { success: false, message: "กรุณาระบุชื่อบริษัทขนส่งอื่นๆ" };
+    }
+
+    const pallets = calculatePalletValue(data.truckType);
+    const formattedDate = Utilities.formatDate(deliveryDate, tz, "yyyy-MM-dd");
+
+    // ✅ 5) ตรวจ Capacity จาก Sheet2
+    const capacityMap = loadCapacityMapForDate_(ss, deliveryDate);
+    const maxForThisSlot = (capacityMap[data.time] != null)
+      ? capacityMap[data.time]
+      : DEFAULT_CAPACITY;
+
+    if (maxForThisSlot === 0) {
+      return { success: false, message: "ไม่สามารถลงเวลานี้ได้เนื่องจากรอบจองเต็มแล้ว (Capacity = 0)" };
+    }
+
+    const currentTotal = checkTimeSlotCapacity(deliveryDate, data.time, ss);
+    if ((currentTotal + pallets) > maxForThisSlot) {
+      return { success: false, message: `ไม่สามารถลงเวลานี้ได้เนื่องจากรอบจองเต็มแล้ว (สูงสุด ${maxForThisSlot} Pallet)` };
+    }
+
+    // ✅ 6) บันทึกข้อมูล
+    const registerCode = generateUniqueCode(sheet, deliveryDate, data.serviceType);
+
+    const newRow = [
+      data.remark || "",                               // A (1)
+      data.jobStatus || "",                            // B (2)
+      (data.shipmentNo ? "'" + formatShipment7Digits(data.shipmentNo) : ""), // C (3)
+      data.truckType || "",                            // D (4)
+      formattedDate,                                   // E (5)
+      finalVendor,                                     // F (6)
+      data.time || "",                                 // G (7)
+      Utilities.getUuid(),                             // H (8)
+      Session.getActiveUser().getEmail(),              // I (9)
+      sanitizePhone(data.phone),                       // J (10)
+      pallets || 0,                                    // K (11)
+      new Date(),                                      // L (12)
+      data.truckNo || "",                              // M (13)
+      data.trailerNo || "",                            // N (14)
+      otherVendor,                                     // O (15)
+      data.customerName || "",                         // P (16)
+      data.driverName || "",                           // Q (17)
+      registerCode,                                    // R (18)
+      "",                                              // S (19)
+      "Scheduled",                                     // T (20)
+      ""                                               // U (21)
+    ];
+
+    sheet.appendRow(newRow);
+    return { success: true, message: "บันทึกการจองสำเร็จ" };
+
+  } catch (error) {
+    return { success: false, message: "เกิดข้อผิดพลาด: " + error.toString() };
+  }
+}
+
+
+function formatShipment7Digits(shipmentStr) {
+  if (!shipmentStr) return "";
+
+  // เอาเฉพาะตัวเลข
+  const digits = String(shipmentStr).replace(/[^0-9]/g, "");
+
+  // ตัดเป็นชุดละ 7 หลัก
+  const groups = [];
+  for (let i = 0; i < digits.length; i += 7) {
+    groups.push(digits.substring(i, i + 7));
+  }
+
+  return groups.join(",");
+}
+
+function loginUser(id, password) {
+  try {
+    const userId = String(id || '').trim();
+    const pass = String(password || '').trim();
+
+    if (!userId || !pass) {
+      return { success: false, message: 'กรุณากรอก ID และรหัสผ่าน' };
+    }
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+    if (!sh) return { success: false, message: 'ไม่พบ Sheet1 (Register)' };
+
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return { success: false, message: 'ยังไม่มีผู้ใช้งานในระบบ' };
+
+    // ✅ อ่าน A–K (14 คอลัมน์)
+    const data = sh.getRange(2, 1, lastRow - 1, 14).getValues();
+
+    // ✅ helper: แปลงค่าจากชีตให้เป็น string สะอาด (ตัด ' หน้า, ตัดช่องว่าง)
+    const clean = (v) => String(v ?? '').replace(/^'/, '').trim();
+
+    // ✅ หา user ด้วย ID (Column A)
+    const row = data.find(r => clean(r[0]).toLowerCase() === userId.toLowerCase());
+    if (!row) return { success: false, message: 'ไม่พบผู้ใช้งานนี้' };
+
+    // ✅ Password = Column B
+    const savedPass = clean(row[1]);
+    if (savedPass !== pass) return { success: false, message: 'รหัสผ่านไม่ถูกต้อง' };
+
+    // ✅ Status = Column J
+    const statusRaw = clean(row[9]);
+    const status = statusRaw.toLowerCase();
+
+    if (status !== 'approve') {
+      if (status === 'waiting') return { success: false, message: 'บัญชีของคุณอยู่ระหว่างรออนุมัติ (Waiting)' };
+      if (status === 'reject') return { success: false, message: 'บัญชีของคุณถูกปฏิเสธ (Reject) กรุณาติดต่อผู้ดูแลระบบ' };
+      return { success: false, message: `ไม่สามารถเข้าใช้งานได้ (สถานะ: ${statusRaw || '-'})` };
+    }
+
+    // ✅ ส่งข้อมูล user กลับไปให้หน้าเว็บ
+    // ✅ ส่งข้อมูล user กลับไปให้หน้าเว็บ
+    const user = {
+      id: userId,
+      company: clean(row[2]),         // C บริษัทขนส่ง
+      firstName: clean(row[3]),       // D
+      lastName: clean(row[4]),        // E
+      email: clean(row[5]),           // F
+      phone: clean(row[6]),           // G
+      department: clean(row[7]),      // H ✅ เพิ่ม
+      role: clean(row[10]) || 'User', // K
+      stopBooking: clean(row[11]),    // L ✅ เพิ่ม
+      startBooking: clean(row[12]),    // M ✅ เพิ่ม
+      bookingPermission: clean(row[13]) // ✅ N: สิทธิ์การ Booking
+    };
+
+    return { success: true, message: 'เข้าสู่ระบบสำเร็จ', user };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err && err.message ? err.message : String(err)) };
+  }
+}
+
+function registerUser(payload) {
+  try {
+    const tz = getTz ? getTz() : Session.getScriptTimeZone();
+
+    const id = String(payload?.id || '').trim();
+    const password = String(payload?.password || '').trim();
+
+    const company = String(payload?.company || '').trim();
+    const firstName = String(payload?.firstName || payload?.name || '').trim();
+    const lastName = String(payload?.lastName || '').trim();
+    const email = String(payload?.email || '').trim();
+    const phone = String(payload?.phone || '').trim();
+    const dept = String(payload?.dept || payload?.department || '').trim();
+
+    if (!id || !password) return { success: false, message: 'กรุณากรอก ID และรหัสผ่าน' };
+    if (password.length < 6) return { success: false, message: 'กรุณาตั้งรหัสผ่านอย่างน้อย 6 ตัว' };
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+    if (!sh) return { success: false, message: 'ไม่พบ Sheet1 (Register)' };
+
+    const lastRow = sh.getLastRow();
+    // ✅ 11 cols (A-K)
+    const values = lastRow >= 2 ? sh.getRange(2, 1, lastRow - 1, 11).getValues() : [];
+
+    // กัน ID ซ้ำ (Column A)
+    const exists = values.some(r => String(r[0]).trim().toLowerCase() === id.toLowerCase());
+    if (exists) return { success: false, message: 'ID นี้ถูกใช้งานแล้ว กรุณาใช้ ID อื่น' };
+
+    const ts = Utilities.formatDate(new Date(), tz, 'M/d/yyyy HH:mm:ss');
+
+    const idText = "'" + id;
+    const passText = "'" + password;
+    const phoneText = phone ? ("'" + phone.replace(/\D/g, '')) : '';
+
+    const newRow = [
+      idText,        // A
+      passText,      // B
+      company,       // C
+      firstName,     // D
+      lastName,      // E
+      email,         // F
+      phoneText,     // G
+      dept,          // H
+      ts,            // I
+      'Waiting',     // J
+      'User'         // K ✅
+    ];
+
+    sh.appendRow(newRow);
+
+    return { success: true, message: 'สมัครสมาชิกสำเร็จ (สถานะ: Waiting) รอผู้ดูแลอนุมัติ' };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) };
+  }
+}
+
+function resetPassword(id, newPassword) {
+  try {
+    const userId = String(id || '').trim();
+    const pass = String(newPassword || '').trim();
+
+    if (!userId || !pass) return { success: false, message: 'กรุณากรอก ID และรหัสผ่านใหม่' };
+    if (pass.length < 6) return { success: false, message: 'รหัสผ่านต้องอย่างน้อย 6 ตัว' };
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+    if (!sh) return { success: false, message: 'ไม่พบ Sheet1 (Register)' };
+
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return { success: false, message: 'ยังไม่มีผู้ใช้งานในระบบ' };
+
+    const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+
+    let foundRowIndex = -1;
+    for (let i = 0; i < data.length; i++) {
+      const rid = String(data[i][0]).replace(/^'/, '').trim().toLowerCase();
+      if (rid === userId.toLowerCase()) {
+        foundRowIndex = i + 2; // sheet row
+        break;
+      }
+    }
+    if (foundRowIndex === -1) return { success: false, message: 'ไม่พบผู้ใช้งานนี้' };
+
+    sh.getRange(foundRowIndex, 2).setValue("'" + pass); // col B เป็น text
+    return { success: true, message: 'อัปเดตรหัสผ่านสำเร็จ' };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) };
+  }
+}
+
+function resetPasswordWithOld(id, oldPassword, newPassword) {
+  try {
+    const userId = String(id || '').trim();
+    const oldPass = String(oldPassword || '').trim();
+    const newPass = String(newPassword || '').trim();
+
+    if (!userId || !oldPass || !newPass) {
+      return { success: false, message: 'กรุณากรอกข้อมูลให้ครบ' };
+    }
+    if (newPass.length < 6) {
+      return { success: false, message: 'รหัสผ่านใหม่ต้องอย่างน้อย 6 ตัว' };
+    }
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+    if (!sh) return { success: false, message: 'ไม่พบ Sheet1 (Register)' };
+
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return { success: false, message: 'ยังไม่มีผู้ใช้งานในระบบ' };
+
+    const data = sh.getRange(2, 1, lastRow - 1, 10).getValues();
+
+    // หา row ของ user
+    let rowIndex = -1;
+    let rowData = null;
+    for (let i = 0; i < data.length; i++) {
+      const rid = String(data[i][0]).replace(/^'/, '').trim().toLowerCase(); // col A
+      if (rid === userId.toLowerCase()) {
+        rowIndex = i + 2;   // index ใน sheet
+        rowData = data[i];
+        break;
+      }
+    }
+    if (rowIndex === -1) return { success: false, message: 'ไม่พบผู้ใช้งานนี้' };
+
+    // (แนะนำ) อนุญาตเฉพาะ Approve ถึงจะเปลี่ยนได้
+    const status = String(rowData[9] || '').trim().toLowerCase(); // col J
+    if (status !== 'approve') {
+      return { success: false, message: 'ยังไม่สามารถเปลี่ยนรหัสผ่านได้ (ต้อง Approve ก่อน)' };
+    }
+
+    const savedPass = String(rowData[1]).replace(/^'/, '').trim(); // col B
+    if (savedPass !== oldPass) {
+      return { success: false, message: 'รหัสผ่านเดิมไม่ถูกต้อง' };
+    }
+
+    // อัปเดตรหัสผ่าน (เก็บเป็น text)
+    sh.getRange(rowIndex, 2).setValue("'" + newPass); // col B
+    return { success: true, message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) };
+  }
+}
+
+function _findUserRow_(sh, userId) {
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return -1;
+
+  const data = sh.getRange(2, 1, lastRow - 1, 11).getValues(); // A..K
+  const idx = data.findIndex(r => String(r[0]).replace(/^'/, '').trim().toLowerCase() === String(userId).trim().toLowerCase());
+  return idx === -1 ? -1 : (idx + 2); // +2 เพราะเริ่มที่ row 2
+}
+
+function _requireAdmin_(adminId) {
+  const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+  const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+  if (!sh) throw new Error('ไม่พบ Sheet1 (Register)');
+
+  const rowNum = _findUserRow_(sh, adminId);
+  if (rowNum === -1) throw new Error('ไม่พบผู้ใช้งาน Admin');
+
+  const role = String(sh.getRange(rowNum, 11).getValue() || '').trim(); // K
+  if (role.toLowerCase() !== 'admin') throw new Error('ไม่มีสิทธิ์ (Admin เท่านั้น)');
+  return true;
+}
+
+// ✅ list users (รองรับ filter status: Waiting/Approve/Reject/All)
+function adminListUsers(adminId, statusFilter) {
+  _requireAdmin_(adminId);
+
+  const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+  const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return { success: true, users: [] };
+
+  const rows = sh.getRange(2, 1, lastRow - 1, 11).getValues(); // A..K
+
+  const filter = String(statusFilter || 'All').trim().toLowerCase();
+  const users = rows.map(r => ({
+    id: String(r[0]).replace(/^'/, '').trim(),
+    company: r[2] || '',
+    firstName: r[3] || '',
+    lastName: r[4] || '',
+    email: r[5] || '',
+    phone: String(r[6] || '').replace(/^'/, '').trim(),
+    status: r[9] || '',
+    role: r[10] || 'User',
+    timestamp: r[8] || ''
+  })).filter(u => filter === 'all' ? true : String(u.status).trim().toLowerCase() === filter);
+
+  return { success: true, users };
+}
+
+// ✅ update status (Approve/Reject/Waiting)
+function adminUpdateUserStatus(adminId, targetUserId, newStatus) {
+  _requireAdmin_(adminId);
+
+  const status = String(newStatus || '').trim();
+  if (!status) return { success: false, message: 'กรุณาระบุสถานะ' };
+
+  const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+  const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+
+  const rowNum = _findUserRow_(sh, targetUserId);
+  if (rowNum === -1) return { success: false, message: 'ไม่พบผู้ใช้งาน' };
+
+  sh.getRange(rowNum, 10).setValue(status); // J
+  return { success: true, message: 'อัปเดตสถานะเรียบร้อย' };
+}
+
+// ✅ update role (Admin/User)
+function adminUpdateUserRole(adminId, targetUserId, newRole) {
+  _requireAdmin_(adminId);
+
+  const role = String(newRole || '').trim();
+  if (!role) return { success: false, message: 'กรุณาระบุ Role' };
+
+  const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+  const sh = ss.getSheetByName(REGISTER_SHEET_NAME);
+
+  const rowNum = _findUserRow_(sh, targetUserId);
+  if (rowNum === -1) return { success: false, message: 'ไม่พบผู้ใช้งาน' };
+
+  sh.getRange(rowNum, 11).setValue(role); // K
+  return { success: true, message: 'อัปเดต Role เรียบร้อย' };
+}
+
+/**
+ * ✅ Admin: อัปเดต booking (แก้ไขได้ทุกอย่างยกเว้นเวลา)
+ */
+function adminUpdateBooking(adminId, bookingData) {
+  try {
+    // 1) ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[bookingData.serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { success: false, message: 'ไม่พบชีตสำหรับอัปเดต' };
+
+    const uuid = bookingData.uuid;
+    if (!uuid) return { success: false, message: 'ไม่พบ UUID' };
+
+    // 2) หาแถวจาก UUID (column H = index 7)
+    const data = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][7] === uuid) {
+        rowIndex = i + 1; // sheet row (1-based)
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return { success: false, message: 'ไม่พบรายการจองนี้' };
+    }
+
+    // 3) อัปเดตข้อมูล
+    let finalVendor = bookingData.vendor || "";
+    let otherVendor = "";
+    if (bookingData.vendor === "อื่นๆ") {
+      finalVendor = bookingData.vendorOther || "อื่นๆ";
+      otherVendor = bookingData.vendorOther || "";
+    }
+
+    sheet.getRange(rowIndex, 1).setValue(bookingData.remark || "");
+    sheet.getRange(rowIndex, 2).setValue(bookingData.jobStatus || "");
+    sheet.getRange(rowIndex, 3).setValue(
+      bookingData.shipmentNo ? "'" + formatShipment7Digits(bookingData.shipmentNo) : ""
+    );
+    sheet.getRange(rowIndex, 6).setValue(finalVendor);
+    sheet.getRange(rowIndex, 10).setValue(sanitizePhone(bookingData.phone));
+    sheet.getRange(rowIndex, 13).setValue(bookingData.truckNo || "");
+    sheet.getRange(rowIndex, 14).setValue(bookingData.trailerNo || "");
+    sheet.getRange(rowIndex, 15).setValue(otherVendor);
+    sheet.getRange(rowIndex, 16).setValue(bookingData.customerName || ""); // ✅ P: Customer Name
+
+    return { success: true, message: 'อัปเดตข้อมูลสำเร็จ' };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) };
+  }
+}
+
+
+
+/**
+ * ✅ Admin: ลบ booking
+ */
+function adminDeleteBooking(adminId, serviceType, uuid) {
+  try {
+    // 1) ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { success: false, message: 'ไม่พบชีต' };
+
+    if (!uuid) return { success: false, message: 'ไม่พบ UUID' };
+
+    // 2) หาแถวจาก UUID (column H = index 7)
+    const data = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][7] === uuid) {
+        rowIndex = i + 1; // sheet row (1-based)
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return { success: false, message: 'ไม่พบรายการจองนี้' };
+    }
+
+    // 3) ลบแถว
+    sheet.deleteRow(rowIndex);
+
+    return { success: true, message: 'ลบรายการจองสำเร็จ' };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) };
+  }
+}
+
+/**
+ * ✅ ดึงข้อมูล booking เดี่ยวเพื่อแก้ไข (ใช้ UUID)
+ */
+function getBookingByUuid(serviceType, uuid) {
+  try {
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { success: false, message: 'ไม่พบชีต' };
+
+    const data = sheet.getDataRange().getValues();
+    const tz = getTz();
+
+    // หาแถวจาก UUID (column H = index 7)
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][7] === uuid) {
+        const row = data[i];
+        
+        let dateStr = '';
+        if (row[4] instanceof Date) {
+          dateStr = Utilities.formatDate(row[4], tz, 'yyyy-MM-dd');
+        } else if (row[4]) {
+          dateStr = String(row[4]).split('T')[0];
+        }
+
+        return {
+          success: true,
+          booking: {
+            uuid: row[7] || '',
+            remark: row[0] || '',
+            jobStatus: row[1] || '',
+            shipmentNo: String(row[2] || '').replace(/^'/, ''),
+            truckType: row[3] || '',
+            date: dateStr,
+            vendor: row[5] || '',
+            time: row[6] || '',
+            phone: String(row[9] || '').replace(/^'/, ''),
+            pallets: row[10] || 0,
+            truckNo: row[12] || '',
+            trailerNo: row[13] || '',
+            vendorOther: row[14] || '',
+            customerName: row[15] || '' // ✅ P: Customer Name
+          }
+        };
+      }
+    }
+
+    return { success: false, message: 'ไม่พบรายการจองนี้' };
+
+  } catch (err) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) };
+  }
+}
+
+/**
+ * ✅ Admin: โหลดข้อมูล Capacity จาก Sheet2
+ */
+function adminLoadCapacity(adminId, serviceType) {
+  try {
+    // ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(CAPACITY_SHEET_NAME); // Sheet2
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet2 (Capacity)' };
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: false, message: 'ไม่มีข้อมูลใน Sheet2' };
+    }
+
+    // อ่านข้อมูลทั้งหมด (A2 ลงไป, 8 columns: A-H)
+    const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+
+    const capacityData = data.map(row => ({
+      timeSlot: row[0] || '',           // A: Time Slot
+      monday: row[1] ?? '',              // B: Monday
+      tuesday: row[2] ?? '',             // C: Tuesday
+      wednesday: row[3] ?? '',           // D: Wednesday
+      thursday: row[4] ?? '',            // E: Thursday
+      friday: row[5] ?? '',              // F: Friday
+      saturday: row[6] ?? '',            // G: Saturday
+      sunday: row[7] ?? ''               // H: Sunday
+    }));
+
+    return { 
+      success: true, 
+      data: capacityData,
+      serviceType: serviceType
+    };
+
+  } catch (err) {
+    return { 
+      success: false, 
+      message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) 
+    };
+  }
+}
+
+/**
+ * ✅ Admin: บันทึกข้อมูล Capacity กลับไปที่ Sheet2
+ */
+function adminSaveCapacity(adminId, serviceType, capacityData) {
+  try {
+    // ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(CAPACITY_SHEET_NAME); // Sheet2
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet2 (Capacity)' };
+    }
+
+    if (!Array.isArray(capacityData) || capacityData.length === 0) {
+      return { success: false, message: 'ไม่มีข้อมูลที่จะบันทึก' };
+    }
+
+    // เตรียมข้อมูลเขียนกลับ (เริ่มที่ row 2)
+    const dataToWrite = capacityData.map(item => [
+      item.timeSlot || '',
+      parseCapacityValue(item.monday),
+      parseCapacityValue(item.tuesday),
+      parseCapacityValue(item.wednesday),
+      parseCapacityValue(item.thursday),
+      parseCapacityValue(item.friday),
+      parseCapacityValue(item.saturday),
+      parseCapacityValue(item.sunday)
+    ]);
+
+    // เขียนทับข้อมูลเดิม
+    sheet.getRange(2, 1, dataToWrite.length, 8).setValues(dataToWrite);
+
+    return { success: true, message: 'บันทึก Capacity สำเร็จ' };
+
+  } catch (err) {
+    return { 
+      success: false, 
+      message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) 
+    };
+  }
+}
+
+/**
+ * Helper: แปลงค่า capacity (ถ้าเป็นตัวเลขให้เก็บเป็น Number, ถ้าว่างให้เป็น "")
+ */
+function parseCapacityValue(val) {
+  if (val === null || val === undefined || val === '') return '';
+  
+  const num = Number(val);
+  if (!isNaN(num)) return num;
+  
+  return '';
+}
+
+/**
+ * Helper: แปลงเวลาไทย (เช่น "16:00 น") เป็นนาที (960)
+ */
+function parseThaiTime(timeStr) {
+  if (!timeStr) return null;
+
+  const str = String(timeStr).trim();
+  
+  // รูปแบบ: "16:00 น" หรือ "16:00"
+  const match = str.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+
+  const hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return hour * 60 + minute;
+}
+
+/**
+ * Helper: แปลงนาทีกลับเป็นเวลาไทย (960 → "16:00 น")
+ */
+function formatMinutesToThaiTime(minutes) {
+  const hour = Math.floor(minutes / 60);
+  const min = minutes % 60;
+  
+  return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')} น`;
+}
+
+/**
+ * ✅ Admin: โหลดข้อมูล User ทั้งหมดจาก Sheet Register
+ */
+function adminLoadUsers(adminId) {
+  try {
+    // ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sheet = ss.getSheetByName(REGISTER_SHEET_NAME);
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet Register' };
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: false, message: 'ไม่มีข้อมูล User' };
+    }
+
+    // อ่านข้อมูลทั้งหมด (A2 ลงไป, 13 columns: A-M)
+    const data = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+
+    const clean = (v) => String(v ?? '').replace(/^'/, '').trim();
+
+    const users = data.map((row, index) => ({
+      rowIndex: index + 2, // บันทึก row index สำหรับอัปเดต (เริ่มที่ 2)
+      id: clean(row[0]),              // A: ID
+      firstName: clean(row[3]),       // D: First Name
+      lastName: clean(row[4]),        // E: Last Name
+      phone: clean(row[6]),           // G: Phone
+      createdAt: clean(row[8]),       // I: Created At
+      status: clean(row[9]) || 'Waiting', // J: Status (default = Waiting)
+      role: clean(row[10]) || 'User', // K: Role
+      stopBooking: clean(row[11]),    // L: Stop Booking
+      startBooking: clean(row[12])    // M: Start Booking
+    }));
+
+    return { 
+      success: true, 
+      data: users
+    };
+
+  } catch (err) {
+    return { 
+      success: false, 
+      message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) 
+    };
+  }
+}
+
+/**
+ * ✅ Admin: อัปเดตสถานะ User (Approve/Reject/Waiting)
+ */
+function adminUpdateUserStatus(adminId, rowIndex, newStatus) {
+  try {
+    // ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sheet = ss.getSheetByName(REGISTER_SHEET_NAME);
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet Register' };
+    }
+
+    // Validate status
+    const validStatuses = ['Approve', 'Reject', 'Waiting'];
+    if (!validStatuses.includes(newStatus)) {
+      return { success: false, message: 'สถานะไม่ถูกต้อง' };
+    }
+
+    // อัปเดต Column J (index 10)
+    sheet.getRange(rowIndex, 10).setValue(newStatus);
+
+    return { 
+      success: true, 
+      message: `อัปเดตสถานะเป็น ${newStatus} สำเร็จ` 
+    };
+
+  } catch (err) {
+    return { 
+      success: false, 
+      message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) 
+    };
+  }
+}
+
+/**
+ * ✅ Admin: อัปเดตข้อมูล User (Role, Stop/Start Booking)
+ */
+function adminUpdateUserData(adminId, rowIndex, userData) {
+  try {
+    // ตรวจสอบสิทธิ์ Admin
+    _requireAdmin_(adminId);
+
+    const ss = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const sheet = ss.getSheetByName(REGISTER_SHEET_NAME);
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet Register' };
+    }
+
+    // อัปเดตเฉพาะ Column K, L, M
+    if (userData.role !== undefined) {
+      sheet.getRange(rowIndex, 11).setValue(userData.role); // K: Role
+    }
+    
+    if (userData.stopBooking !== undefined) {
+      sheet.getRange(rowIndex, 12).setValue(userData.stopBooking); // L: Stop Booking
+    }
+    
+    if (userData.startBooking !== undefined) {
+      sheet.getRange(rowIndex, 13).setValue(userData.startBooking); // M: Start Booking
+    }
+
+    return { 
+      success: true, 
+      message: 'อัปเดตข้อมูลสำเร็จ' 
+    };
+
+  } catch (err) {
+    return { 
+      success: false, 
+      message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) 
+    };
+  }
+}
+
+/**
+ * ✅ โหลดรายชื่อ Customer จาก Master Sheet
+ */
+function loadCustomerList() {
+  try {
+    const CUSTOMER_SS_ID = "13eZkSHUYTAwFHiqGCwHGGCdM_71h0fcwvujtLSWY8Hc";
+    const CUSTOMER_SHEET_NAME = "Sheet1";
+
+    const ss = SpreadsheetApp.openById(CUSTOMER_SS_ID);
+    const sheet = ss.getSheetByName(CUSTOMER_SHEET_NAME);
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet Customer' };
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: false, message: 'ไม่มีข้อมูล Customer' };
+    }
+
+    // อ่าน Column A (ShipTo_Code) และ B (Customer Name)
+    const data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+
+    const customers = data
+      .filter(row => row[1] && String(row[1]).trim() !== '') // มี Customer Name
+      .map(row => ({
+        code: String(row[0] || '').trim(),
+        name: String(row[1] || '').trim()
+      }));
+
+    return { 
+      success: true, 
+      customers: customers
+    };
+
+  } catch (err) {
+    return { 
+      success: false, 
+      message: 'เกิดข้อผิดพลาด: ' + (err.message || err.toString()) 
+    };
+  }
+}
+
+/**
+ * ✅ Dashboard: ดึงข้อมูลแบบ Date Range พร้อม Comparison
+ */
+function getDashboardDataRange(serviceType, startDateStr, endDateStr) {
+  try {
+    const tz = getTz();
+    
+    // แปลง Date String เป็น Date Object
+    const startDate = parseDateString(startDateStr);
+    const endDate = parseDateString(endDateStr);
+    
+    if (!startDate || !endDate) {
+      return { success: false, message: 'วันที่ไม่ถูกต้อง' };
+    }
+    
+    // ตั้งเวลาให้ครอบคลุมทั้งวัน
+    const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0);
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
+    
+    // คำนวณจำนวนวัน
+    const dayCount = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // ✅ กำหนดช่วงเปรียบเทียบ (Previous Period)
+    const previousEnd = new Date(start);
+    previousEnd.setDate(previousEnd.getDate() - 1);
+    previousEnd.setHours(23, 59, 59);
+    
+    const previousStart = new Date(previousEnd);
+    previousStart.setDate(previousStart.getDate() - (dayCount - 1));
+    previousStart.setHours(0, 0, 0);
+    
+    // เตรียมตัวแปรสำหรับเก็บข้อมูล CURRENT PERIOD
+    let totalBookings = 0;
+    let totalReceive = 0;
+    let totalSend = 0;
+    let totalPallets = 0;
+    let maxCapacity = 0;
+    
+    const truckTypeData = {
+      '4W': { count: 0, pallets: 0 },
+      '6W': { count: 0, pallets: 0 },
+      '10W': { count: 0, pallets: 0 },
+      '22W': { count: 0, pallets: 0 }
+    };
+    
+    const slotData = {};
+    
+    // ✅ เตรียมตัวแปรสำหรับเก็บข้อมูล PREVIOUS PERIOD
+    let previousTotalBookings = 0;
+    
+    // กำหนด Service Types ที่จะดึงข้อมูล
+    const serviceTypes = (serviceType === 'ALL') 
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceType];
+    
+    // Loop ดึงข้อมูลจากแต่ละ Service
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+      
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+      
+      const data = sheet.getDataRange().getValues();
+      
+      // Column indexes
+      const colStatus = 1;    // B: สถานะงาน
+      const colTruckType = 3; // D: ประเภทรถ
+      const colDate = 4;      // E: วันที่
+      const colTime = 6;      // G: เวลา
+      const colPallet = 10;   // K: Pallet
+      
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const cellDate = row[colDate];
+        
+        if (!cellDate) continue;
+        
+        // แปลงวันที่
+        let rowDate = null;
+        if (cellDate instanceof Date) {
+          rowDate = new Date(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
+        } else {
+          const parsed = parseDateString(String(cellDate));
+          if (parsed) {
+            rowDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+          }
+        }
+        
+        if (!rowDate) continue;
+        
+        // ✅ เช็คว่าอยู่ใน CURRENT PERIOD หรือ PREVIOUS PERIOD
+        const isInCurrentPeriod = (rowDate >= start && rowDate <= end);
+        const isInPreviousPeriod = (rowDate >= previousStart && rowDate <= previousEnd);
+        
+        if (!isInCurrentPeriod && !isInPreviousPeriod) continue;
+        
+        // ✅ นับข้อมูล CURRENT PERIOD
+        if (isInCurrentPeriod) {
+          totalBookings++;
+          
+          const status = String(row[colStatus] || '').trim();
+          if (status.includes('รับสินค้า')) totalReceive++;
+          if (status.includes('ส่งสินค้า')) totalSend++;
+          
+          const truckType = String(row[colTruckType] || '').trim();
+          const pallets = Number(row[colPallet]) || 0;
+          
+          totalPallets += pallets;
+          
+          // นับ Truck Type
+          if (truckTypeData[truckType]) {
+            truckTypeData[truckType].count++;
+            truckTypeData[truckType].pallets += pallets;
+          }
+          
+          // เก็บข้อมูล Slot พร้อมแยกประเภทรถ
+          const timeSlot = String(row[colTime] || '').trim();
+          if (timeSlot) {
+            if (!slotData[timeSlot]) {
+              slotData[timeSlot] = { 
+                totalPallets: 0, 
+                count: 0,
+                truckBreakdown: {} // ✅ เพิ่มการนับแยกตามประเภท
+              };
+            }
+            slotData[timeSlot].totalPallets += pallets;
+            slotData[timeSlot].count++;
+            
+            // ✅ นับจำนวนรถแต่ละประเภท
+            if (truckType) {
+              if (!slotData[timeSlot].truckBreakdown[truckType]) {
+                slotData[timeSlot].truckBreakdown[truckType] = 0;
+              }
+              slotData[timeSlot].truckBreakdown[truckType]++;
+            }
+          }
+        }
+        
+        // ✅ นับข้อมูล PREVIOUS PERIOD (เฉพาะจำนวนคัน)
+        if (isInPreviousPeriod) {
+          previousTotalBookings++;
+        }
+      }
+      
+      // โหลด Average Capacity (ประมาณการ)
+      // สมมติ 1 วัน = 17 slots × 96 PLT = 1,632 PLT
+      maxCapacity += (1632 * dayCount);
+    });
+    
+    // ✅ คำนวณ Comparison
+    const difference = totalBookings - previousTotalBookings;
+    const percentage = previousTotalBookings > 0 
+      ? Math.round((difference / previousTotalBookings) * 100) 
+      : 0;
+    
+    // คำนวณ Utilization
+    const utilization = maxCapacity > 0 ? Math.round((totalPallets / maxCapacity) * 100) : 0;
+    
+    // หา Full Slots พร้อมรายละเอียดประเภทรถ
+    const fullSlots = [];
+    Object.keys(slotData).forEach(slot => {
+      const slotInfo = slotData[slot];
+      const slotCapacity = 96;
+      
+      if (slotInfo.totalPallets >= slotCapacity) {
+        fullSlots.push({
+          time: slot,
+          pallets: slotInfo.totalPallets,
+          max: slotCapacity,
+          count: slotInfo.count,
+          percentage: 100,
+          truckBreakdown: slotInfo.truckBreakdown || {} // ✅ เพิ่มรายละเอียดประเภทรถ
+        });
+      }
+    });
+    
+    // เตรียม Truck Type Array
+    const truckTypes = Object.keys(truckTypeData).map(type => ({
+      type: type,
+      count: truckTypeData[type].count,
+      pallets: truckTypeData[type].pallets,
+      percentage: totalBookings > 0 ? Math.round((truckTypeData[type].count / totalBookings) * 100) : 0
+    }));
+    
+    // ✅ คำนวณ Capacity ที่ว่าง (Available)
+    const availablePallets = maxCapacity - totalPallets;
+    const availablePercentage = maxCapacity > 0 
+      ? Math.round((availablePallets / maxCapacity) * 100)
+      : 0;
+    
+    return {
+      success: true,
+      data: {
+        totalBookings: totalBookings,
+        totalReceive: totalReceive,
+        totalSend: totalSend,
+        utilization: utilization,
+        totalPallets: totalPallets,
+        maxCapacity: maxCapacity,
+        truckTypes: truckTypes,
+        fullSlots: fullSlots,
+        availablePercentage: availablePercentage,
+        availablePallets: availablePallets,  // ✅ เพิ่ม
+        dateRange: {
+          start: Utilities.formatDate(start, tz, 'dd/MM/yyyy'),
+          end: Utilities.formatDate(end, tz, 'dd/MM/yyyy'),
+          days: dayCount
+        },
+        // ✅ ส่งข้อมูล Comparison กลับไป
+        comparison: {
+          currentTotal: totalBookings,
+          previousTotal: previousTotalBookings,
+          difference: difference,
+          percentage: percentage,
+          previousPeriod: {
+            start: Utilities.formatDate(previousStart, tz, 'dd/MM/yyyy'),
+            end: Utilities.formatDate(previousEnd, tz, 'dd/MM/yyyy')
+          }
+        }
+      }
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ สร้าง Random Code 4 หลัก (เลขเท่านั้น)
+ */
+function generateRandomCode() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+/**
+ * ✅ ตรวจสอบว่า Code ซ้ำหรือไม่ (ในชีตเดียวกัน)
+ */
+function isCodeDuplicate(sheet, code) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+  
+  // Column R = index 18 (1-based) = 18
+  const codes = sheet.getRange(2, 18, lastRow - 1, 1).getValues();
+  
+  return codes.some(row => String(row[0]).trim() === code);
+}
+
+/**
+ * ✅ สร้าง Unique Code (ไม่ซ้ำในชีต)
+ */
+function generateUniqueCode(sheet, deliveryDate, serviceType) {
+  const prefixMap = {
+    'AY':       '2',
+    'RJ':       '3',
+    'AY_EXPORT':'4',
+    'AY_OEM':   '5',
+    'AY_FOC':   '6'
+  };
+  const prefix = prefixMap[serviceType] || '1';
+
+  const tz = getTz();
+
+  // ✅ วันที่จอง และวันก่อนหน้า 1 วัน
+  const dateStr = Utilities.formatDate(deliveryDate, tz, 'yyyy-MM-dd');
+  const prevDate = new Date(deliveryDate);
+  prevDate.setDate(prevDate.getDate() - 1);
+  const prevDateStr = Utilities.formatDate(prevDate, tz, 'yyyy-MM-dd');
+
+  // ✅ ดึงข้อมูลทั้งหมด
+  const data = sheet.getDataRange().getValues();
+  const usedCodes = new Set();
+
+  data.forEach(row => {
+    const rowDate = row[4]; // Column E
+    const rowCode = String(row[17] || ''); // Column R
+
+    let rowDateStr = '';
+    if (rowDate instanceof Date) {
+      rowDateStr = Utilities.formatDate(rowDate, tz, 'yyyy-MM-dd');
+    } else {
+      rowDateStr = String(rowDate || '').trim();
+    }
+
+    // ✅ เช็คทั้งวันที่จองและวันก่อนหน้า
+    if ((rowDateStr === dateStr || rowDateStr === prevDateStr) && rowCode.startsWith(prefix)) {
+      usedCodes.add(rowCode);
+    }
+  });
+
+  // ✅ สุ่มโค้ดที่ไม่ซ้ำ
+  let code = '';
+  let attempts = 0;
+  do {
+    const rand = Math.floor(Math.random() * 999) + 1;
+    code = prefix + String(rand).padStart(3, '0');
+    attempts++;
+    if (attempts > 1000) throw new Error('ไม่สามารถสร้างรหัสได้ (รหัสเต็ม)');
+  } while (usedCodes.has(code));
+
+  return code;
+}
+
+/**
+ * ✅ ตรวจสอบรหัส 4 หลัก
+ */
+function verifyRegisterCode(code) {
+  try {
+    const tz = getTz();
+    const today = new Date();
+    const todayStr = Utilities.formatDate(today, tz, 'dd/MM/yyyy');
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = Utilities.formatDate(yesterday, tz, 'dd/MM/yyyy');
+
+    const prefixMap = {
+      '2': 'AY', '3': 'RJ', '4': 'AY_EXPORT',
+      '5': 'AY_OEM', '6': 'AY_FOC'
+    };
+
+    const prefix = code.charAt(0);
+    const serviceType = prefixMap[prefix];
+
+    if (!serviceType) return { success: false, message: 'ไม่พบการจอง กรุณาตรวจสอบรหัสใหม่อีกครั้ง' };
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'ไม่พบการจอง กรุณาตรวจสอบรหัสใหม่อีกครั้ง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { success: false, message: 'ไม่พบการจอง กรุณาตรวจสอบรหัสใหม่อีกครั้ง' };
+
+    const data = sheet.getDataRange().getValues();
+
+    const colDate        = 4;
+    const colShipment    = 2;
+    const colTruckNo     = 12;
+    const colTruckType   = 3;
+    const colDriverName  = 16;
+    const colCode        = 17;
+    const colTimeStampReg = 18;
+
+    let foundRow = null;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const rowCode = String(row[colCode] || '').trim();
+
+      if (rowCode !== code) continue;
+
+      // ✅ เช็ควันที่
+      const cellDate = row[colDate];
+      let rowDateStr = '';
+
+      if (cellDate instanceof Date) {
+        rowDateStr = Utilities.formatDate(cellDate, tz, 'dd/MM/yyyy');
+      } else {
+        const parsed = parseDateString(String(cellDate));
+        if (parsed) rowDateStr = Utilities.formatDate(parsed, tz, 'dd/MM/yyyy');
+      }
+
+      // ✅ ตรงกับวันนี้หรือเมื่อวาน → เก็บแล้วหยุด
+      if (rowDateStr === todayStr || rowDateStr === yesterdayStr) {
+        foundRow = { row, rowIndex: i + 1 };
+        break;
+      }
+    }
+
+    if (!foundRow) {
+      return { success: false, message: 'ไม่พบการจอง กรุณาตรวจสอบรหัสใหม่อีกครั้ง' };
+    }
+
+    const { row, rowIndex } = foundRow;
+
+    if (row[colTimeStampReg]) {
+      return { success: false, message: 'รหัสนี้ลงทะเบียนแล้ว ไม่สามารถลงทะเบียนซ้ำได้' };
+    }
+
+    return {
+      success: true,
+      data: {
+        serviceType,
+        rowIndex,
+        sheetId: ssId,
+        driverName: String(row[colDriverName] || '-'),
+        shipmentNo: String(row[colShipment] || '-'),
+        truckNo: String(row[colTruckNo] || '-'),
+        truckType: String(row[colTruckType] || '').trim(),
+        code
+      }
+    };
+
+  } catch (error) {
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString()) };
+  }
+}
+
+/**
+ * ✅ ลงทะเบียน Check-in (ใช้ Batch Update)
+ */
+function registerCheckIn(bookingData) {
+  const lock = LockService.getScriptLock();
+  
+  try {
+    lock.waitLock(30000);
+    
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(bookingData.sheetId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    
+    if (!sheet) {
+      lock.releaseLock();
+      return { success: false, message: 'ไม่พบ Sheet' };
+    }
+    
+    const rowIndex = bookingData.rowIndex;
+    const now = new Date();
+    
+    Logger.log('=== Check-in Row ' + rowIndex + ' ===');
+    
+    // ดึงวันที่จอง
+    const bookingDate = sheet.getRange(rowIndex, 5).getValue();
+    
+    if (!bookingDate) {
+      lock.releaseLock();
+      return { success: false, message: 'ไม่พบวันที่จอง' };
+    }
+    
+    // เช็คว่า Check-in แล้วหรือยัง
+    const existingTimestamp = sheet.getRange(rowIndex, 19).getValue();
+    const existingQueue = sheet.getRange(rowIndex, 22).getValue();
+    
+    if (existingTimestamp && existingQueue) {
+      lock.releaseLock();
+      return {
+        success: true,
+        queueNumber: existingQueue,
+        message: 'คุณ Check-in แล้ว คิวของคุณคือ: ' + existingQueue
+      };
+    }
+    
+    // คำนวณลำดับ
+    const queueNumber = calculateQueueNumber(sheet, bookingDate, rowIndex);
+    
+    Logger.log('📝 อัปเดต Row ' + rowIndex + ' (Batch Update)');
+    
+    // ✅ อ่านแถวทั้งหมดก่อน
+    const currentRow = sheet.getRange(rowIndex, 1, 1, 23).getValues()[0];
+    Logger.log('📋 ค่าเดิม T (index 19): "' + currentRow[19] + '"');
+    
+    // ✅ อัปเดตค่าในแถว
+    currentRow[18] = now;              // S (index 18)
+    currentRow[19] = 'In Progress';    // T (index 19)
+    currentRow[21] = queueNumber;      // V (index 21)
+    currentRow[12] = bookingData.truckNo || '';         // ✅ M (index 12) ทะเบียนรถ
+    currentRow[13] = bookingData.trailerNo || '';       // ✅ N (index 13) ทะเบียนพ่วง
+    currentRow[9]  = bookingData.phone || currentRow[9];                  // ✅ J: Phone ทับเบอร์เดิม
+
+    // ✅ คำนวณ Ontime/Late จาก Column G (timeSlot) vs Column S (now)
+    const timeSlot = String(currentRow[6] || '').trim(); // G (index 6)
+    const plannedDate = currentRow[4]; // E (index 4)
+    const matchStart = timeSlot.match(/^(\d{1,2}):(\d{2})/); // ✅ ดึงเวลาเริ่มต้น
+
+    Logger.log('🔍 timeSlot: "' + timeSlot + '"');
+    Logger.log('🔍 plannedDate: "' + plannedDate + '"');
+    Logger.log('🔍 matchStart: ' + JSON.stringify(matchStart));
+
+    if (matchStart && plannedDate) {
+      const endHour   = parseInt(matchStart[1], 10);
+      const endMinute = parseInt(matchStart[2], 10);
+
+      let bookDate = (plannedDate instanceof Date)
+        ? plannedDate
+        : parseDateString(String(plannedDate).trim());
+      const deadlineStr = Utilities.formatDate(bookDate, tz, 'yyyy-MM-dd')
+        + `T${String(endHour).padStart(2,'0')}:${String(endMinute).padStart(2,'0')}:00`;
+
+      const deadline = new Date(deadlineStr);
+      // ✅ Logic ใหม่
+      if (now <= deadline) {
+        currentRow[22] = 'Ontime';
+      } else if (now <= new Date(deadline.getTime() + 15 * 60 * 1000)) {
+        currentRow[22] = 'Late';
+      } else {
+        currentRow[22] = 'Out of time';
+      }
+
+      Logger.log(`⏱ Slot: ${timeSlot} | Deadline: ${deadline} | CheckIn: ${now} → ${currentRow[22]}`);
+    }
+
+    // ✅ เขียนทั้งแถวกลับไป
+    sheet.getRange(rowIndex, 1, 1, 23).setValues([currentRow]);
+
+    // ✅ เขียนทั้งแถวกลับไป
+    sheet.getRange(rowIndex, 1, 1, 23).setValues([currentRow]);
+    
+    Logger.log('✅ เขียนค่าใหม่ (Batch):');
+    Logger.log('   S: ' + currentRow[18]);
+    Logger.log('   T: "' + currentRow[19] + '"');
+    Logger.log('   V: ' + currentRow[21]);
+    
+    // Flush
+    SpreadsheetApp.flush();
+    Logger.log('💾 Flush สำเร็จ');
+    
+    // Verify
+    Utilities.sleep(300);
+    const verifyStatus = sheet.getRange(rowIndex, 20).getValue();
+    Logger.log('🔍 ตรวจสอบ T: "' + verifyStatus + '"');
+    
+    lock.releaseLock();
+    
+    return {
+      success: true,
+      queueNumber: queueNumber,
+      message: 'ลงทะเบียนสำเร็จ'
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    
+    try {
+      lock.releaseLock();
+    } catch (e) {}
+    
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ คำนวณลำดับโหลดสินค้า = MAX(ลำดับวันนี้) + 1
+ * ถ้าไม่มีลำดับเลย → เริ่มที่ 1
+ */
+function calculateQueueNumber(sheet, bookingDate, currentRowIndex) {
+  const tz = getTz();
+  const targetDateKey = Utilities.formatDate(bookingDate, tz, "yyyy-MM-dd");
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) return 1;
+
+  // ✅ อ่านแค่ 2 Column ที่ใช้จริง
+  const colE = sheet.getRange(2, 5, lastRow - 1, 1).getValues();  // Column E
+  const colV = sheet.getRange(2, 22, lastRow - 1, 1).getValues(); // Column V
+
+  let maxQueueToday = 0;
+  let foundAnyInSameDate = false;
+
+  for (let i = 0; i < colE.length; i++) {
+    const rowNum = i + 2;
+    if (rowNum === currentRowIndex) continue;
+
+    const cellDate = colE[i][0];
+    const queue = colV[i][0];
+
+    if (!cellDate) continue;
+
+    let rowDateKey = '';
+    try {
+      if (cellDate instanceof Date) {
+        rowDateKey = Utilities.formatDate(cellDate, tz, "yyyy-MM-dd");
+      } else {
+        rowDateKey = Utilities.formatDate(new Date(cellDate), tz, "yyyy-MM-dd");
+      }
+    } catch(e) { continue; }
+
+    if (rowDateKey === targetDateKey) {
+      foundAnyInSameDate = true;
+      const n = Number(queue);
+      if (!isNaN(n) && n > maxQueueToday) {
+        maxQueueToday = n;
+      }
+    }
+  }
+
+  if (!foundAnyInSameDate) return 1;
+
+  const newQueue = maxQueueToday + 1;
+  Logger.log('✅ Queue: ' + newQueue);
+  return newQueue;
+}
+
+/**
+ * ✅ ส่ง URL ของ Web App กลับไป
+ */
+function getWebAppUrl() {
+  return ScriptApp.getService().getUrl();
+}
+
+/**
+ * ✅ ดึงรายการลงทะเบียนของวันนี้สำหรับ Register Management
+ */
+function getRegisterList() {
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    
+    if (!sheet) {
+      return { success: false, message: 'ไม่พบ Sheet' };
+    }
+    
+    const tz = getTz();
+    const today = new Date();
+    const todayKey = Utilities.formatDate(today, tz, 'yyyy-MM-dd');
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: true, data: [] };
+    }
+    
+    // อ่านข้อมูลทั้งหมด (A:V = columns 1-22)
+    const data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+    
+    const result = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      
+      const service = row[1];           // B: Service
+      const bookingDate = row[4];       // E: วันที่จอง
+      const timeSlot = row[6];          // G: ช่วงเวลา
+      const transportCompany = row[8];  // I: บริษัทขนส่ง
+      const driverName = row[16];       // Q: ชื่อผู้ขับ
+      const timestampReg = row[18];     // S: TimeStamp_Register
+      const status = row[19];           // T: Status_Transport
+      const queueNumber = row[21];      // V: ลำดับโหลดสินค้า
+      
+      // ✅ กรองเฉพาะที่มี TimeStamp_Register (ลงทะเบียนแล้ว)
+      if (!timestampReg) continue;
+      
+      // ✅ กรองเฉพาะวันนี้
+      let bookingDateKey = '';
+      if (bookingDate instanceof Date) {
+        bookingDateKey = Utilities.formatDate(bookingDate, tz, 'yyyy-MM-dd');
+      } else if (bookingDate) {
+        try {
+          const tempDate = new Date(bookingDate);
+          bookingDateKey = Utilities.formatDate(tempDate, tz, 'yyyy-MM-dd');
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      if (bookingDateKey !== todayKey) continue;
+      
+      // ✅ แปลง TimeStamp_Register เป็นเวลา
+      let checkInTime = '';
+      if (timestampReg instanceof Date) {
+        checkInTime = Utilities.formatDate(timestampReg, tz, 'HH:mm');
+      }
+      
+      result.push({
+        service: service || '-',
+        queueNumber: queueNumber || '-',
+        timeSlot: timeSlot || '-',
+        checkInTime: checkInTime,
+        transportCompany: transportCompany || '-',
+        driverName: driverName || '-',
+        status: status || 'Scheduled'
+      });
+    }
+    
+    // ✅ เรียงตามลำดับโหลดสินค้า
+    result.sort((a, b) => {
+      const qA = Number(a.queueNumber) || 999;
+      const qB = Number(b.queueNumber) || 999;
+      return qA - qB;
+    });
+    
+    Logger.log('✅ พบรายการลงทะเบียน: ' + result.length + ' รายการ');
+    
+    return { success: true, data: result };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ ดึงรายการลงทะเบียนสำหรับ Register Management
+ * แสดงเฉพาะ In Progress ใน Table
+ * แต่ส่ง Stats ครบทุก Status
+ */
+function getRegisterManagementData(serviceFilter) {
+  try {
+    const tz = getTz();
+    const today = new Date();
+    const todayKey = Utilities.formatDate(today, tz, 'yyyy-MM-dd');
+    
+    const result = [];
+    let totalBookings = 0;
+    let checkedInCount = 0;
+    let completedCount = 0;
+    
+    // กำหนด Service Types
+    const serviceTypes = (serviceFilter === 'ALL') 
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceFilter];
+    
+    // Loop ดึงข้อมูล
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+      
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+      
+      // อ่านข้อมูล
+      const data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+      
+      // Column indexes
+      const colDate = 4;
+      const colVendor = 5;
+      const colTime = 6;
+      const colTruckNo = 12;  // M: ทะเบียนรถ ✅ เพิ่ม
+      const colTrailerNo = 13; // N: ทะเบียนพ่วง ✅ เพิ่ม
+      const colDriverName = 16;
+      const colTimestampReg = 18;
+      const colStatus = 19;
+      const colQueue = 21;
+      
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        
+        // กรองเฉพาะวันนี้
+        const bookingDate = row[colDate];
+        let bookingDateKey = '';
+        
+        if (bookingDate instanceof Date) {
+          bookingDateKey = Utilities.formatDate(bookingDate, tz, 'yyyy-MM-dd');
+        } else if (bookingDate) {
+          try {
+            const tempDate = new Date(bookingDate);
+            bookingDateKey = Utilities.formatDate(tempDate, tz, 'yyyy-MM-dd');
+          } catch (e) {
+            continue;
+          }
+        }
+        
+        if (bookingDateKey !== todayKey) continue;
+        
+        // นับทุกรายการที่จองวันนี้
+        totalBookings++;
+        
+        // นับที่ Check-in แล้ว
+        if (row[colTimestampReg]) {
+          checkedInCount++;
+          
+          const status = String(row[colStatus] || '').trim();
+          
+          // นับ Completed
+          if (status === 'Completed' || status === 'เสร็จสิ้น') {
+            completedCount++;
+            continue; // ไม่ใส่ใน result (Table)
+          }
+          
+          // ✅ เฉพาะ In Progress ใส่ใน result (Table)
+          if (status === 'In Progress' || status === 'กำลังดำเนินการ') {
+            let checkInTime = '-';
+            if (row[colTimestampReg] instanceof Date) {
+              checkInTime = Utilities.formatDate(row[colTimestampReg], tz, 'HH:mm');
+            }
+            
+            result.push({
+              serviceType: sType,
+              queueNumber: row[colQueue] || '-',
+              timeSlot: row[colTime] || '-',
+              checkInTime: checkInTime,
+              vendor: row[colVendor] || '-',
+              truckNo: String(row[colTruckNo] || '-'),  // ✅ เพิ่ม
+              trailerNo: (() => {                          // ✅ เพิ่ม
+                const val = row[colTrailerNo];
+                if (!val || val === '-') return '';
+                if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+                return String(val);
+              })(),
+              driverName: row[colDriverName] || '-',
+              status: row[colStatus] || 'In Progress'
+            });
+          }
+        }
+      }
+    });
+    
+    // เรียงตามลำดับ
+    result.sort((a, b) => {
+      const qA = Number(a.queueNumber) || 0;
+      const qB = Number(b.queueNumber) || 0;
+      return qB - qA;
+    });
+    
+    Logger.log('✅ พบรายการ In Progress: ' + result.length);
+    Logger.log('✅ รายการจองทั้งหมด: ' + totalBookings);
+    Logger.log('✅ Check-in แล้ว: ' + checkedInCount);
+    Logger.log('✅ Completed: ' + completedCount);
+    
+    return { 
+      success: true, 
+      data: result,
+      totalBookings: totalBookings,
+      checkedInCount: checkedInCount,
+      completedCount: completedCount
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ ดึงข้อมูลรายการรอยืนยันการโหลดสินค้า
+ * กรอง: Status_Transport = "In Progress"
+ * แสดง: B, C, D, F, G, M, N, Q, T
+ */
+function getConfirmLoadingData(serviceFilter, dateFilter, hideConfirmLoading = true) {
+  try {
+    const tz = getTz();
+    
+    // ตั้งค่าวันที่กรอง
+    let targetDate = new Date();
+    if (dateFilter) {
+      try {
+        targetDate = new Date(dateFilter);
+      } catch (e) {
+        // ใช้วันนี้ถ้า parse ไม่ได้
+      }
+    }
+    const targetDateKey = Utilities.formatDate(targetDate, tz, 'yyyy-MM-dd');
+    
+    const result = [];
+    let completedToday = 0;
+    
+    // กำหนด Service Types
+    const serviceTypes = (serviceFilter === 'ALL') 
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceFilter];
+    
+    // Loop ดึงข้อมูล
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+      
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+      
+      // อ่านข้อมูล (A:T = 20 columns)
+      const data = sheet.getRange(2, 1, lastRow - 1, 24).getValues();
+      
+      // Column indexes (0-based)
+      const colB = 1;   // สถานะงาน
+      const colC = 2;   // Shipment
+      const colD = 3;   // ประเภทรถ
+      const colE = 4;   // วันที่
+      const colF = 5;   // บริษัทขนส่ง
+      const colG = 6;   // ช่วงเวลา
+      const colM = 12;  // ทะเบียนรถ
+      const colN = 13;  // ทะเบียนรถพ่วง
+      const colQ = 16;  // ผู้ขับ
+      const colT = 19;  // Status_Transport
+      
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const rowIndex = i + 2;
+        
+        // กรองตามวันที่
+        const bookingDate = row[colE];
+        let bookingDateKey = '';
+        
+        if (bookingDate instanceof Date) {
+          bookingDateKey = Utilities.formatDate(bookingDate, tz, 'yyyy-MM-dd');
+        } else if (bookingDate) {
+          try {
+            const tempDate = new Date(bookingDate);
+            bookingDateKey = Utilities.formatDate(tempDate, tz, 'yyyy-MM-dd');
+          } catch (e) {
+            continue;
+          }
+        }
+        
+        if (bookingDateKey !== targetDateKey) continue;
+        
+        const status = String(row[colT] || '').trim();
+        
+        // นับ Completed วันนี้
+        if (status === 'Completed' || status === 'เสร็จสิ้น') {
+          completedToday++;
+          continue;
+        }
+        
+        // แสดงเฉพาะ In Progress
+        if (status !== 'In Progress' && status !== 'กำลังดำเนินการ') {
+          continue;
+        }
+
+        // ✅ ถ้า Column X มีค่าแล้ว → ไม่แสดง (เฉพาะหน้า Confirm Loading)
+        const colX = row[23];
+        if (hideConfirmLoading && colX) continue;
+        
+        result.push({
+          serviceType: sType,
+          sheetId: ssId,
+          rowIndex: rowIndex,
+          colB: String(row[colB] || '-'),
+          colC: String(row[colC] || '-'),
+          colD: String(row[colD] || '-'),
+          colF: String(row[colF] || '-'),
+          colG: String(row[colG] || '-'),
+          colM: String(row[colM] || '-'),   // ✅ ทะเบียนรถ
+          colN: (() => {                     // ✅ ทะเบียนพ่วง (อาจเป็น Date)
+            const val = row[colN];
+            if (!val || val === '-') return '-';
+            if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+            return String(val);
+          })(),
+          colQ: String(row[colQ] || '-'),
+          colT: String(row[colT] || '-')
+        });
+      }
+    });
+    
+    Logger.log('✅ พบรายการรอยืนยัน: ' + result.length + ' รายการ');
+    Logger.log('✅ ยืนยันแล้ววันนี้: ' + completedToday + ' รายการ');
+    
+    return { 
+      success: true, 
+      data: result,
+      completedToday: completedToday
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ ยืนยันการโหลดสินค้า (Confirm Loading)
+ * - เปลี่ยน Status_Transport (T/20) เป็น "Completed"
+ * - บันทึก TimeStamp_Billing (U/21)
+ */
+function confirmLoadingTransaction(sheetId, rowIndex, serviceType) {
+  const lock = LockService.getScriptLock();
+  
+  try {
+    lock.waitLock(30000);
+    
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(sheetId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    
+    if (!sheet) {
+      lock.releaseLock();
+      return { success: false, message: 'ไม่พบ Sheet' };
+    }
+    
+    const now = new Date();
+    
+    Logger.log('=== Confirm Loading Row ' + rowIndex + ' ===');
+    
+    // เช็คสถานะปัจจุบัน
+    const currentStatus = sheet.getRange(rowIndex, 20).getValue(); // Column T
+    
+    if (currentStatus === 'Completed' || currentStatus === 'เสร็จสิ้น') {
+      lock.releaseLock();
+      return {
+        success: false,
+        message: 'รายการนี้ถูกยืนยันไปแล้ว'
+      };
+    }
+    
+    Logger.log('📝 อัปเดต Status และ Timestamp');
+    
+    // อัปเดต Column T: Status_Transport
+    sheet.getRange(rowIndex, 20).setValue('Completed');
+    Logger.log('✅ Column T (20): Completed');
+    
+    // อัปเดต Column U: TimeStamp_Billing
+    sheet.getRange(rowIndex, 21).setValue(now);
+    Logger.log('✅ Column U (21): ' + now);
+    
+    // Flush
+    SpreadsheetApp.flush();
+    Logger.log('💾 Flush สำเร็จ');
+    
+    // Verify
+    const verifyStatus = sheet.getRange(rowIndex, 20).getValue();
+    const verifyTimestamp = sheet.getRange(rowIndex, 21).getValue();
+    
+    Logger.log('🔍 ตรวจสอบ:');
+    Logger.log('   Status: ' + verifyStatus);
+    Logger.log('   Timestamp: ' + verifyTimestamp);
+    
+    lock.releaseLock();
+    
+    return {
+      success: true,
+      message: 'ยืนยันการโหลดสินค้าสำเร็จ'
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    
+    try {
+      lock.releaseLock();
+    } catch (e) {}
+    
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ ดึงข้อมูลรหัสเช็คอิน (Code_Register)
+ * แสดง: B, C, D, F, G, M, N, Q, R
+ * กรองตามวันที่จองและสถานะ
+ */
+function getNumberCheckinData(serviceFilter, dateFilter, statusFilter) {
+  try {
+    const tz = getTz();
+    
+    // ตั้งค่าวันที่กรอง
+    let targetDate = new Date();
+    if (dateFilter) {
+      try {
+        targetDate = new Date(dateFilter);
+      } catch (e) {
+        // ใช้วันนี้ถ้า parse ไม่ได้
+      }
+    }
+    const targetDateKey = Utilities.formatDate(targetDate, tz, 'yyyy-MM-dd');
+    
+    const result = [];
+    
+    // กำหนด Service Types
+    const serviceTypes = (serviceFilter === 'ALL') 
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceFilter];
+    
+    // Loop ดึงข้อมูล
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+      
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+      
+      // อ่านข้อมูล (A:T = 20 columns เพื่อรวม Column T: Status_Transport)
+      const data = sheet.getRange(2, 1, lastRow - 1, 20).getValues();
+      
+      // Column indexes (0-based)
+      const colB = 1;   // สถานะงาน
+      const colC = 2;   // Shipment
+      const colD = 3;   // ประเภทรถ
+      const colE = 4;   // วันที่
+      const colF = 5;   // บริษัทขนส่ง
+      const colG = 6;   // ช่วงเวลา
+      const colM = 12;  // ทะเบียนรถ
+      const colN = 13;  // ทะเบียนรถพ่วง
+      const colQ = 16;  // ผู้ขับ
+      const colR = 17;  // Code_Register
+      const colT = 19;  // Status_Transport
+      
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const rowIndex = i + 2;
+        
+        // กรองตามวันที่
+        const bookingDate = row[colE];
+        let bookingDateKey = '';
+        
+        if (bookingDate instanceof Date) {
+          bookingDateKey = Utilities.formatDate(bookingDate, tz, 'yyyy-MM-dd');
+        } else if (bookingDate) {
+          try {
+            const tempDate = new Date(bookingDate);
+            bookingDateKey = Utilities.formatDate(tempDate, tz, 'yyyy-MM-dd');
+          } catch (e) {
+            continue;
+          }
+        }
+        
+        if (bookingDateKey !== targetDateKey) continue;
+        
+        // ต้องมี Code_Register
+        const codeRegister = String(row[colR] || '').trim();
+        if (!codeRegister || codeRegister === '-') continue;
+        
+        // กรองตามสถานะ
+        const status = String(row[colT] || '').trim();
+        if (statusFilter !== 'ALL') {
+          // แปลงสถานะไทยเป็นอังกฤษเพื่อเปรียบเทียบ
+          let normalizedStatus = status;
+          if (status === 'กำหนดเวลา' || status === 'รอดำเนินการ') {
+            normalizedStatus = 'Scheduled';
+          } else if (status === 'กำลังดำเนินการ') {
+            normalizedStatus = 'In Progress';
+          } else if (status === 'เสร็จสิ้น') {
+            normalizedStatus = 'Completed';
+          }
+          
+          if (normalizedStatus !== statusFilter) continue;
+        }
+        
+        result.push({
+          serviceType: sType,
+          sheetId: ssId,
+          rowIndex: rowIndex,
+          colB: String(row[colB] || '-'),
+          colC: String(row[colC] || '-'),
+          colD: String(row[colD] || '-'),
+          colF: String(row[colF] || '-'),
+          colG: String(row[colG] || '-'),
+          colM: String(row[colM] || '-'),   // ✅ ทะเบียนรถ
+          colN: (() => {                     // ✅ ทะเบียนพ่วง (อาจเป็น Date)
+            const val = row[colN];
+            if (!val || val === '-') return '-';
+            if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+            return String(val);
+          })(),
+          colQ: String(row[colQ] || '-'),
+          colR: codeRegister
+        });
+      }
+    });
+    
+    Logger.log('✅ พบรหัสเช็คอิน: ' + result.length + ' รายการ');
+    
+    return { 
+      success: true, 
+      data: result
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + (error.message || error.toString())
+    };
+  }
+}
+
+/**
+ * ✅ ดึงข้อมูล Dashboard Analytics
+ * แก้ไข: นับ Truck Type ให้ครอบคลุมทุกรูปแบบ
+ */
+function getDashboardData(serviceFilter, startDate, endDate) {
+  try {
+    const tz = getTz();
+    const today = new Date();
+    const todayKey = Utilities.formatDate(today, tz, 'yyyy-MM-dd');
+    
+    // ตัวแปรเก็บข้อมูล
+    let totalCount = 0;
+    let receiveCount = 0;
+    let sendCount = 0;
+    
+    // Status วันนี้
+    let todayTotal = 0;
+    let todayWaiting = 0;
+    let todayProgress = 0;
+    let todayCompleted = 0;
+    
+    // ✅ Truck Types (นับจากทุกรายการ ไม่ใช่แค่วันนี้)
+    let truck4w = 0;
+    let truck6w = 0;
+    let truck10w = 0;
+    let truck22w = 0;
+    
+    // ✅ เพิ่มตัวแปร vendor pallets
+    let vendorPallets = {
+      'DHL': 0,
+      'TNV': 0,
+      'เก้าเลี้ยว': 0,
+      'TRL': 0,
+      'ลูกค้ารับเอง': 0
+    };
+    
+    // กำหนด Service Types
+    const serviceTypes = (serviceFilter === 'ALL') 
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceFilter];
+    
+    // Loop ดึงข้อมูล
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+      
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+      
+      // อ่านข้อมูล
+      const data = sheet.getRange(2, 1, lastRow - 1, 22).getValues();
+      
+      // Column indexes
+      const colJobStatus = 1;   // B: สถานะงาน
+      const colTruckType = 3;   // D: ประเภทรถ
+      const colDate = 4;        // E: วันที่จอง
+      const colVendor = 5;         // F: ผู้ขนส่ง ✅ แก้จาก 14 เป็น 5
+      const colPallets = 10;       // K: จำนวน Pallet ✅ แก้จาก 9 เป็น 10
+      const colTimestampReg = 18; // S: TimeStamp_Register
+      const colStatus = 19;     // T: Status_Transport
+      
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        
+        // กรองตามวันที่
+        const bookingDate = row[colDate];
+        let bookingDateKey = '';
+        
+        if (bookingDate instanceof Date) {
+          bookingDateKey = Utilities.formatDate(bookingDate, tz, 'yyyy-MM-dd');
+        } else if (bookingDate) {
+          try {
+            const tempDate = new Date(bookingDate);
+            bookingDateKey = Utilities.formatDate(tempDate, tz, 'yyyy-MM-dd');
+          } catch (e) {
+            continue;
+          }
+        }
+        
+        // ตรวจสอบช่วงวันที่
+        if (startDate && endDate) {
+          if (bookingDateKey < startDate || bookingDateKey > endDate) {
+            continue;
+          }
+        }
+        
+        // นับ Total
+        totalCount++;
+        
+        // นับ Receive/Send
+        const jobStatus = String(row[colJobStatus] || '').toLowerCase();
+        if (jobStatus.includes('นำเข้า') || jobStatus.includes('รับ')) {
+          receiveCount++;
+        } else if (jobStatus.includes('ส่งออก') || jobStatus.includes('ส่ง')) {
+          sendCount++;
+        }
+        
+        // ✅ นับ Truck Types (ครอบคลุมทุกรูปแบบ)
+        const truckType = String(row[colTruckType] || '').trim();
+        
+        // แสดง Log เพื่อดูว่าข้อมูลเป็นอะไร
+        if (i < 5) { // แสดงแค่ 5 แถวแรก
+          Logger.log('Row ' + (i+2) + ' Truck Type: "' + truckType + '"');
+        }
+        
+        // นับ Truck Type
+        if (truckType.match(/4\s*[wWล้อ]/i) || truckType === '4W' || truckType === '4w') {
+          truck4w++;
+        } else if (truckType.match(/6\s*[wWล้อ]/i) || truckType === '6W' || truckType === '6w') {
+          truck6w++;
+        } else if (truckType.match(/10\s*[wWล้อ]/i) || truckType === '10W' || truckType === '10w') {
+          truck10w++;
+        } else if (truckType.match(/22\s*[wWล้อ]/i) || truckType === '22W' || truckType === '22w' || 
+                   truckType.includes('หัวลาก') || truckType.includes('เทรลเลอร์') || 
+                   truckType.includes('trailer')) {
+          truck22w++;
+        }
+
+        // ✅ นับ Pallet ต่อ Vendor
+        const vendor = String(row[colVendor] || '').trim();
+        const pallets = Number(row[colPallets] || 0);
+        
+        if (vendor && vendorPallets.hasOwnProperty(vendor)) {
+          vendorPallets[vendor] += pallets;
+        }
+        
+        // นับ Status วันนี้
+        if (bookingDateKey === todayKey) {
+          todayTotal++;
+          
+          if (row[colTimestampReg]) {
+            const status = String(row[colStatus] || '').trim();
+            
+            if (status === 'In Progress' || status === 'กำลังดำเนินการ') {
+              todayProgress++;
+            } else if (status === 'Completed' || status === 'เสร็จสิ้น') {
+              todayCompleted++;
+            }
+          } else {
+            todayWaiting++;
+          }
+        }
+      }
+    });
+    
+    // ✅ คำนวณ % Receive / Send
+    const receivePercent = totalCount > 0 ? Math.round((receiveCount / totalCount) * 100) : 0;
+    const sendPercent = totalCount > 0 ? Math.round((sendCount / totalCount) * 100) : 0;
+
+    // ✅ Log เพื่อตรวจสอบ
+    Logger.log('=== Dashboard Data ===');
+    Logger.log('Total Count: ' + totalCount);
+    Logger.log('Today Total: ' + todayTotal);
+    Logger.log('Today Waiting: ' + todayWaiting);
+    Logger.log('Today Progress: ' + todayProgress);
+    Logger.log('Today Completed: ' + todayCompleted);
+    Logger.log('Truck 4W: ' + truck4w);
+    Logger.log('Truck 6W: ' + truck6w);
+    Logger.log('Truck 10W: ' + truck10w);
+    Logger.log('Truck 22W: ' + truck22w);
+    Logger.log('Truck Total: ' + (truck4w + truck6w + truck10w + truck22w));
+    
+    return {
+      success: true,
+      
+      // Overview
+      total: totalCount,
+      receive: receiveCount,
+      receivePercent: receivePercent,
+      send: sendCount,
+      sendPercent: sendPercent,
+      
+      // Today Status
+      todayTotal: todayTotal,
+      todayWaiting: todayWaiting,
+      todayProgress: todayProgress,
+      todayCompleted: todayCompleted,
+      
+      // Truck Types
+      truck4w: truck4w,
+      truck6w: truck6w,
+      truck10w: truck10w,
+      truck22w: truck22w,
+
+      // ✅ เพิ่ม Vendor Pallets
+      vendorPallets: vendorPallets
+    };
+    
+  } catch (error) {
+    Logger.log('❌ Error: ' + error.message);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + error.toString()
+    };
+  }
+}
+
+function testDashboard() {
+  const result = getDashboardData('ALL', '', '');
+  Logger.log('Result: ' + JSON.stringify(result));
+}
+
+function checkHolidayForBooking(serviceType, dateStr) {
+  try {
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { isHoliday: false };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheets()[2]; // Sheet3 (index 2)
+    if (!sheet) return { isHoliday: false };
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      const d = data[i][0];
+      const status = String(data[i][1] || '').trim();
+
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, getTz(), 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+
+      if (rowDateStr === dateStr && status === 'ปิด') {
+        return { isHoliday: true };
+      }
+    }
+    return { isHoliday: false };
+  } catch (e) {
+    return { isHoliday: false };
+  }
+}
+
+// ===============================
+// ✅ HOLIDAY FUNCTIONS
+// ===============================
+
+/**
+ * เช็คว่าวันที่นั้นเป็น Holiday ของ Service นั้นหรือไม่
+ */
+function isHoliday(ssId, dateStr) {
+  try {
+    const ss = SpreadsheetApp.openById(ssId);
+    let sheet = ss.getSheetByName('Holidays');
+    if (!sheet) return false;
+
+    const data = sheet.getDataRange().getValues();
+    return data.some(row => {
+      const d = row[0];
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, getTz(), 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+      return rowDateStr === dateStr;
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+// ===============================
+// ✅ HOLIDAY ADMIN FUNCTIONS
+// ===============================
+
+function adminGetHolidays(adminId, serviceType) {
+  try {
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheets()[2];
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet3' };
+
+    const data = sheet.getDataRange().getValues();
+    const holidays = [];
+
+    data.forEach((row, index) => {
+      if (index === 0) return; // ✅ skip header row
+      const d = row[0];
+      const status = String(row[1] || '').trim();
+      if (!d) return;
+
+      let dateStr = '';
+      if (d instanceof Date) {
+        dateStr = Utilities.formatDate(d, getTz(), 'yyyy-MM-dd');
+      } else {
+        dateStr = String(d).trim();
+      }
+
+      if (dateStr) holidays.push({ rowIndex: index + 1, date: dateStr, status });
+    });
+
+    holidays.sort((a, b) => a.date.localeCompare(b.date));
+    return { success: true, data: holidays };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+// ✅ แก้ adminAddHoliday รับ status parameter
+function adminAddHoliday(adminId, serviceType, dateStr, status) {
+  try {
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheets()[2];
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet3' };
+
+    const data = sheet.getDataRange().getValues();
+    const already = data.some(row => {
+      const d = row[0];
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, getTz(), 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+      return rowDateStr === dateStr;
+    });
+
+    if (already) return { success: false, message: 'วันที่นี้มีอยู่แล้วใน Sheet3' };
+
+    const finalStatus = (status === 'เปิด') ? 'เปิด' : 'ปิด'; // ✅ รับค่า status
+    sheet.appendRow([dateStr, finalStatus]);
+    return { success: true, message: `เพิ่มวันที่ ${dateStr} (${finalStatus}) สำเร็จ` };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+// ✅ ฟังก์ชันใหม่ - อัปเดตสถานะ
+function adminUpdateHolidayStatus(adminId, serviceType, rowIndex, newStatus) {
+  try {
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheets()[2];
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet3' };
+
+    const finalStatus = (newStatus === 'เปิด') ? 'เปิด' : 'ปิด';
+    sheet.getRange(rowIndex, 2).setValue(finalStatus); // ✅ Column B = สถานะ
+    SpreadsheetApp.flush();
+
+    return { success: true, message: `อัปเดตสถานะเป็น "${finalStatus}" สำเร็จ` };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+function adminDeleteHoliday(adminId, serviceType, rowIndex) {
+  try {
+    _requireAdmin_(adminId);
+
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) return { success: false, message: 'serviceType ไม่ถูกต้อง' };
+
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheets()[2];
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet3' };
+
+    sheet.deleteRow(rowIndex);
+    return { success: true, message: 'ลบวันหยุดสำเร็จ' };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+const CAPACITY_RECORD_SS_ID = '1KmeX8H5UhO2GL3JcOJ3TQ9Tf3s7JJZOOdoqprYrve30';
+
+function recordDailyCapacity() {
+  const tz = getTz();
+  const now = new Date();
+  const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+
+  // ✅ หาว่าวันนี้คือวันอะไร → map เป็น Column index ใน Sheet2
+  // Sheet2: A=ช่วงเวลา, B=Monday, C=Tuesday, D=Wednesday, E=Thursday, F=Friday, G=Saturday, H=Sunday
+  const dayOfWeek = Utilities.formatDate(now, tz, 'EEEE'); // "Monday", "Tuesday", ...
+  const dayColumnMap = {
+    'Monday':    1, // B
+    'Tuesday':   2, // C
+    'Wednesday': 3, // D
+    'Thursday':  4, // E
+    'Friday':    5, // F
+    'Saturday':  6, // G
+    'Sunday':    7  // H
+  };
+  const colIndex = dayColumnMap[dayOfWeek];
+  if (colIndex === undefined) return;
+
+  // ✅ นับ Capacity รวมทั้งวันของแต่ละ Service จาก Sheet2
+  const services = ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC'];
+  const totals = {};
+
+  services.forEach(serviceType => {
+    try {
+      const ssId = SS_CONFIG[serviceType];
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet2 = ss.getSheets()[1]; // Sheet2
+      if (!sheet2) { totals[serviceType] = 0; return; }
+
+      const data = sheet2.getDataRange().getValues();
+      let total = 0;
+
+      data.forEach((row, index) => {
+        if (index === 0) return; // skip header
+        const capacity = Number(row[colIndex]) || 0;
+        total += capacity;
+      });
+
+      totals[serviceType] = total;
+    } catch (e) {
+      totals[serviceType] = 0;
+    }
+  });
+
+  // ✅ เขียนลง Google Sheet ปลายทาง (Sheet1 / Table1)
+  const targetSS = SpreadsheetApp.openById(CAPACITY_RECORD_SS_ID);
+  const targetSheet = targetSS.getSheets()[0]; // Sheet1
+  if (!targetSheet) return;
+
+  // เช็คซ้ำ ป้องกัน duplicate
+  const existingData = targetSheet.getDataRange().getValues();
+  const alreadyExists = existingData.some((row, index) => { 
+    if (index === 0) return false; // ✅ skip header row
+    const d = row[0];
+    let rowDateStr = '';
+    if (d instanceof Date) {
+      rowDateStr = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    } else {
+      rowDateStr = String(d || '').trim();
+    }
+    return rowDateStr === todayStr;
+  });
+
+  if (alreadyExists) return; // ไม่ record ซ้ำ
+
+  targetSheet.appendRow([
+    todayStr,
+    totals['AY']        || 0, // B - AY Domestic
+    totals['RJ']        || 0, // C - RJ Domestic
+    totals['AY_EXPORT'] || 0, // D - AY Export
+    totals['AY_OEM']    || 0, // E - AY OEM
+    totals['AY_FOC']    || 0  // F - AY FOC
+  ]);
+}
+
+function createDailyCapacityTrigger() {
+  // ลบ Trigger เดิมที่ชื่อเดียวกันก่อน (ป้องกันซ้ำ)
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'recordDailyCapacity') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+
+  // ✅ ตั้ง Trigger ใหม่ทุกวันตี 3
+  ScriptApp.newTrigger('recordDailyCapacity')
+    .timeBased()
+    .everyDays(1)
+    .atHour(3)
+    .inTimezone('Asia/Bangkok')
+    .create();
+}
+
+function testRecordDailyCapacity() {
+  try {
+    const tz = getTz();
+    const now = new Date();
+    const dayOfWeek = Utilities.formatDate(now, tz, 'EEEE');
+    Logger.log('วันนี้: ' + dayOfWeek);
+
+    const dayColumnMap = {
+      'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+      'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7
+    };
+    const colIndex = dayColumnMap[dayOfWeek];
+    Logger.log('Column Index: ' + colIndex);
+
+    const services = ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC'];
+    services.forEach(serviceType => {
+      const ssId = SS_CONFIG[serviceType];
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet2 = ss.getSheets()[1];
+      Logger.log(serviceType + ' → Sheet2 name: ' + (sheet2 ? sheet2.getName() : 'NOT FOUND'));
+
+      if (sheet2) {
+        const data = sheet2.getDataRange().getValues();
+        let total = 0;
+        data.forEach((row, index) => {
+          if (index === 0) return;
+          total += Number(row[colIndex]) || 0;
+        });
+        Logger.log(serviceType + ' → Total: ' + total);
+      }
+    });
+
+    // เช็ค Target Sheet
+    const targetSS = SpreadsheetApp.openById(CAPACITY_RECORD_SS_ID);
+    const targetSheet = targetSS.getSheets()[0];
+    Logger.log('Target Sheet name: ' + (targetSheet ? targetSheet.getName() : 'NOT FOUND'));
+
+    // ✅ เช็ค duplicate และลอง append (ย้ายเข้ามาใน try)
+    const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+    Logger.log('todayStr: ' + todayStr);
+    Logger.log('CAPACITY_RECORD_SS_ID: ' + CAPACITY_RECORD_SS_ID);
+
+    const existingData = targetSheet.getDataRange().getValues();
+    Logger.log('Existing rows: ' + existingData.length);
+
+    const alreadyExists = existingData.some(row => {
+      const d = row[0];
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+      Logger.log('เช็ค row: ' + rowDateStr + ' vs ' + todayStr);
+      return rowDateStr === todayStr;
+    });
+
+    Logger.log('alreadyExists: ' + alreadyExists);
+
+  } catch(e) {
+    Logger.log('ERROR: ' + e.toString());
+  }
+}
+
+function getDashboardCapacityUtilize(dateStr, serviceFilter) {
+  try {
+    const tz = getTz();
+    const targetSS = SpreadsheetApp.openById(CAPACITY_RECORD_SS_ID);
+    const targetSheet = targetSS.getSheets()[0];
+    if (!targetSheet) return { success: false, message: 'ไม่พบ Sheet' };
+
+    const data = targetSheet.getDataRange().getValues();
+    let capacityRow = null;
+
+    for (let i = 1; i < data.length; i++) {
+      const d = data[i][0];
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+      if (rowDateStr === dateStr) {
+        capacityRow = data[i];
+        break;
+      }
+    }
+
+    const capacities = {
+      AY:        capacityRow ? Number(capacityRow[1]) || 0 : 0,
+      RJ:        capacityRow ? Number(capacityRow[2]) || 0 : 0,
+      AY_EXPORT: capacityRow ? Number(capacityRow[3]) || 0 : 0,
+      AY_OEM:    capacityRow ? Number(capacityRow[4]) || 0 : 0,
+      AY_FOC:    capacityRow ? Number(capacityRow[5]) || 0 : 0
+    };
+
+    const services = serviceFilter && serviceFilter !== 'ALL'
+      ? [serviceFilter]
+      : ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC'];
+
+    const used = {};
+    services.forEach(serviceType => {
+      try {
+        const ssId = SS_CONFIG[serviceType];
+        const ss = SpreadsheetApp.openById(ssId);
+        const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+        if (!sheet) { used[serviceType] = 0; return; }
+
+        const rows = sheet.getDataRange().getValues();
+        let totalPallets = 0;
+        rows.forEach((row, index) => {
+          if (index === 0) return;
+          const d = row[4];
+          let rowDateStr = '';
+          if (d instanceof Date) {
+            rowDateStr = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+          } else {
+            rowDateStr = String(d || '').trim();
+          }
+          if (rowDateStr === dateStr) {
+            totalPallets += Number(row[10]) || 0;
+          }
+        });
+        used[serviceType] = totalPallets;
+      } catch (e) {
+        used[serviceType] = 0;
+      }
+    });
+
+    // ✅ ถ้า ALL → รวมทุก Service เป็นตัวเดียว
+    if (!serviceFilter || serviceFilter === 'ALL') {
+      const totalUsed = services.reduce((sum, s) => sum + (used[s] || 0), 0);
+      const totalCap = services.reduce((sum, s) => sum + (capacities[s] || 0), 0);
+      return {
+        success: true,
+        mode: 'ALL',
+        data: {
+          used: totalUsed,
+          capacity: totalCap,
+          percent: totalCap > 0 ? Math.round((totalUsed / totalCap) * 100) : 0
+        }
+      };
+    }
+
+    // ✅ ถ้าเลือก Service เดียว
+    const s = serviceFilter;
+    return {
+      success: true,
+      mode: 'SINGLE',
+      serviceType: s,
+      data: {
+        used: used[s] || 0,
+        capacity: capacities[s] || 0,
+        percent: capacities[s] > 0 ? Math.round(((used[s] || 0) / capacities[s]) * 100) : 0
+      }
+    };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+// ===============================
+// ✅ STATUS TRANSPORT FUNCTION
+// ===============================
+
+/**
+ * คำนวณ Ontime/Late แล้วเขียนลง Column W
+ * เรียกหลังจาก Check-in สำเร็จ
+ */
+function updateStatusTransport(ssId, rowNum, checkinDateTime) {
+  try {
+    const ss = SpreadsheetApp.openById(ssId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return;
+
+    const row = sheet.getRange(rowNum, 1, 1, 23).getValues()[0];
+
+    const bookingDate = row[4];
+    const timeSlot = String(row[6] || '').trim();
+
+    if (!bookingDate || !timeSlot || !checkinDateTime) return;
+
+    const matchStart = timeSlot.match(/^(\d{1,2}):(\d{2})/); // ✅ ดึงเวลาเริ่มต้น
+    if (!matchStart) return;
+
+    const endHour   = parseInt(matchStart[1], 10);
+    const endMinute = parseInt(matchStart[2], 10);
+
+    const tz = getTz();
+    let bookDate;
+    if (bookingDate instanceof Date) {
+      bookDate = bookingDate;
+    } else {
+      bookDate = parseDateString(String(bookingDate).trim());
+    }
+
+    const deadlineStr = Utilities.formatDate(bookDate, tz, 'yyyy-MM-dd')
+      + ` ${String(endHour).padStart(2,'0')}:${String(endMinute).padStart(2,'0')}:00`;
+
+    const deadline = new Date(deadlineStr.replace(' ', 'T'));
+
+    const checkin = (checkinDateTime instanceof Date)
+      ? checkinDateTime
+      : new Date(checkinDateTime);
+
+    // ✅ Logic ใหม่
+    let status = '';
+    if (checkin <= deadline) {
+      status = 'Ontime';
+    } else if (checkin <= new Date(deadline.getTime() + 15 * 60 * 1000)) {
+      status = 'Late';
+    } else {
+      status = 'Out of time';
+    }
+
+    Logger.log('deadline: ' + deadline);
+    Logger.log('deadline+15: ' + new Date(deadline.getTime() + 15 * 60 * 1000));
+    Logger.log('checkin: ' + checkin);
+    Logger.log('status: ' + status);
+
+    sheet.getRange(rowNum, 23).setValue(status);
+
+  } catch (e) {
+    Logger.log('updateStatusTransport error: ' + e.toString());
+  }
+}
+
+function getAYDomesticDashboard() {
+  try {
+    const tz = getTz();
+    const now = new Date();
+    const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+
+    const ss = SpreadsheetApp.openById(SS_CONFIG['AY']);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet' };
+
+    const data = sheet.getDataRange().getValues();
+    const bookings = [];
+
+    data.forEach((row, index) => {
+      if (index === 0) return; // skip header
+
+      const d = row[4]; // Column E = วันที่
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+
+      if (rowDateStr !== todayStr) return;
+
+      const statusTransport = String(row[19] || '').trim(); // T = Status_Transport
+
+      // ✅ คำนวณ status
+      let status = 'Waiting';
+      if (statusTransport === 'In Progress') status = 'In Progress';
+      else if (statusTransport === 'Completed') status = 'Completed';
+
+      // ✅ แปลง TimeStamp_Register เป็น string
+      const tsRaw = row[18]; // S = TimeStamp_Register
+      let tsStr = '-';
+      if (tsRaw instanceof Date) {
+        tsStr = Utilities.formatDate(tsRaw, getTz(), 'HH:mm');
+      } else if (tsRaw) {
+        tsStr = String(tsRaw).trim();
+      }
+
+      bookings.push({
+        queue:     row[21] || '-',          // V = Queue Number
+        time:      String(row[6] || '-'),   // G = ช่วงเวลา
+        driver:    String(row[16] || '-'),  // Q = ชื่อคนขับ
+        truckNo:   String(row[12] || '-'),  // M = ทะเบียนรถ
+        truckType: String(row[3] || '-'),   // D = ประเภทรถ
+        status:    status,
+        ontime:    String(row[22] || ''),   // W = Ontime/Late
+        checkinTime: tsStr,                 // S = เวลา Check-in จริง
+      });
+    });
+
+    // เรียงตาม Queue น้อยไปมาก และ Completed อยู่ด้านล่างเสมอ
+    bookings.sort((a, b) => {
+      const aCompleted = a.status === 'Completed' ? 1 : 0;
+      const bCompleted = b.status === 'Completed' ? 1 : 0;
+
+      // ถ้า Completed ไม่เท่ากัน → Completed ลงไปด้านล่าง
+      if (aCompleted !== bCompleted) return aCompleted - bCompleted;
+
+      // ถ้า status เหมือนกัน → เรียงตาม Queue น้อยไปมาก
+      const qa = parseInt(a.queue) || 9999;
+      const qb = parseInt(b.queue) || 9999;
+      return qa - qb;
+    });
+
+    return { success: true, data: bookings, date: todayStr };
+
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+const SYSTEM_CLOSE_SS_ID = '1hoSznqlF6Uc4PH8uI96xLGAAEQLYNATGlKVGvP1UlS0';
+
+/**
+ * เช็คว่าวันนี้ระบบปิดสำหรับ Service นั้นไหม
+ */
+function isSystemClosed(serviceType) {
+  try {
+    const tz = getTz();
+    const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    const ss = SpreadsheetApp.openById(SYSTEM_CLOSE_SS_ID);
+    const sheet = ss.getSheets()[0];
+    if (!sheet) return false;
+
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      const d = data[i][0];
+      let rowDateStr = '';
+      if (d instanceof Date) {
+        rowDateStr = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(d || '').trim();
+      }
+
+      const rowService = String(data[i][1] || '').trim();
+      const rowStatus  = String(data[i][2] || '').trim();
+
+      if (rowDateStr === todayStr && rowService === serviceType && rowStatus === 'ปิด') {
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Admin — ดึงรายการปิดระบบทั้งหมด
+ */
+// ✅ สำหรับ User ทั่วไป (ไม่ต้อง Admin)
+function getSystemCloseForUser() {
+  try {
+    const ss = SpreadsheetApp.openById(SYSTEM_CLOSE_SS_ID);
+    const sheet = ss.getSheets()[0];
+    const data = sheet.getDataRange().getValues();
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      const serviceLabelToKey = {
+        'AY Domestic': 'AY', 'RJ Domestic': 'RJ',
+        'AY Export': 'AY_EXPORT', 'AY OEM & Transfer': 'AY_OEM', 'AY FOC & CN': 'AY_FOC',
+        'AY': 'AY', 'RJ': 'RJ', 'AY_EXPORT': 'AY_EXPORT', 'AY_OEM': 'AY_OEM', 'AY_FOC': 'AY_FOC'
+      };
+      const serviceRaw = String(data[i][1] || '');
+      rows.push({
+        rowIndex: i + 1,
+        date: String(data[i][0] instanceof Date
+          ? Utilities.formatDate(data[i][0], getTz(), 'yyyy-MM-dd')
+          : data[i][0] || ''),
+        service:    serviceRaw,
+        serviceKey: serviceLabelToKey[serviceRaw] || serviceRaw,
+        status:  String(data[i][2] || '')
+      });
+    }
+    return { success: true, data: rows };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+// ✅ สำหรับ Admin (มี permission check)
+function adminGetSystemClose(adminId) {
+  _requireAdmin_(adminId);
+  try {
+    const ss = SpreadsheetApp.openById(SYSTEM_CLOSE_SS_ID);
+    const sheet = ss.getSheets()[0];
+    const data = sheet.getDataRange().getValues();
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue;
+    
+    // ✅ Map ชื่อเต็ม → serviceKey
+    const serviceLabelToKey = {
+      'AY Domestic': 'AY', 'RJ Domestic': 'RJ',
+      'AY Export': 'AY_EXPORT', 'AY OEM & Transfer': 'AY_OEM', 'AY FOC & CN': 'AY_FOC',
+      // fallback ถ้าเก็บเป็น key อยู่แล้ว
+      'AY': 'AY', 'RJ': 'RJ', 'AY_EXPORT': 'AY_EXPORT', 'AY_OEM': 'AY_OEM', 'AY_FOC': 'AY_FOC'
+    };
+    const serviceRaw = String(data[i][1] || '');
+    rows.push({
+      rowIndex: i + 1,
+      date:    String(data[i][0] instanceof Date
+        ? Utilities.formatDate(data[i][0], getTz(), 'yyyy-MM-dd')
+        : data[i][0] || ''),
+      service:    serviceRaw,
+      serviceKey: serviceLabelToKey[serviceRaw] || serviceRaw, // ✅ เพิ่ม serviceKey
+      status:  String(data[i][2] || '')
+    });
+    }
+    return { success: true, data: rows };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+/**
+ * Admin — เพิ่มรายการปิดระบบ
+ */
+function adminAddSystemClose(adminId, dateStr, serviceType, serviceLabel) {
+  _requireAdmin_(adminId);
+  try {
+    const ss = SpreadsheetApp.openById(SYSTEM_CLOSE_SS_ID);
+    const sheet = ss.getSheets()[0];
+
+    // เช็คซ้ำ
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      const d = data[i][0];
+      const rowDateStr = d instanceof Date
+        ? Utilities.formatDate(d, getTz(), 'yyyy-MM-dd')
+        : String(d || '').trim();
+      if (rowDateStr === dateStr && String(data[i][1]) === serviceType) {
+        return { success: false, message: 'มีรายการนี้อยู่แล้ว' };
+      }
+    }
+
+    // ✅ ดึงชื่อ Admin จาก Register Sheet
+    const regSS = SpreadsheetApp.openById(REGISTER_SS_ID);
+    const regSheet = regSS.getSheetByName(REGISTER_SHEET_NAME) || regSS.getSheets()[0];
+    const regData = regSheet.getDataRange().getValues();
+    let adminName = adminId;
+    for (let i = 1; i < regData.length; i++) {
+      if (String(regData[i][0]).trim() === String(adminId).trim()) {
+        adminName = String(regData[i][3] || '') + ' ' + String(regData[i][4] || '');
+        adminName = adminName.trim();
+        break;
+      }
+    }
+
+    sheet.appendRow([dateStr, serviceLabel || serviceType, 'ปิด', adminName]);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+/**
+ * Admin — ลบรายการปิดระบบ
+ */
+function adminDeleteSystemClose(adminId, rowIndex) {
+  _requireAdmin_(adminId);
+  try {
+    const ss = SpreadsheetApp.openById(SYSTEM_CLOSE_SS_ID);
+    const sheet = ss.getSheets()[0];
+    sheet.deleteRow(rowIndex);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+function getExportData(serviceFilter, startDate, endDate) {
+  try {
+    const tz = getTz();
+    const serviceTypes = serviceFilter === 'ALL'
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceFilter];
+
+    const result = [];
+
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+
+      const data = sheet.getRange(2, 1, lastRow - 1, 24).getValues();
+
+      data.forEach(row => {
+        const cellDate = row[4];
+        let dateKey = '';
+
+        if (cellDate instanceof Date) {
+          dateKey = Utilities.formatDate(cellDate, tz, 'yyyy-MM-dd');
+        } else if (cellDate) {
+          try {
+            const parts = String(cellDate).split('/');
+            if (parts.length === 3) {
+              const month = parts[0].padStart(2, '0');
+              const day = parts[1].padStart(2, '0');
+              const year = parts[2];
+              const parsed = new Date(`${year}-${month}-${day}`);
+              dateKey = Utilities.formatDate(parsed, tz, 'yyyy-MM-dd');
+            } else {
+              dateKey = Utilities.formatDate(new Date(cellDate), tz, 'yyyy-MM-dd');
+            }
+          } catch(e) {}
+        }
+
+        if (!dateKey || dateKey < startDate || dateKey > endDate) return;
+
+        // ✅ แปลง DateTime เป็น String ก่อนส่ง (ลดขนาดข้อมูล)
+        const formatDT = (val) => {
+          if (!val) return '';
+          if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+          return String(val);
+        };
+
+        result.push({
+          date: dateKey,
+          serviceType: sType,
+          status: String(row[1] || ''),
+          shipment: String(row[2] || ''),
+          truckType: String(row[3] || ''),
+          vendor: String(row[5] || ''),
+          time: String(row[6] || ''),
+          phone: String(row[9] || ''),
+          pallets: Number(row[10] || 0),
+          bookDateTime: formatDT(row[11]),       // ✅ แปลงเป็น String
+          truckNo: String(row[12] || ''),
+          trailerNo: String(row[13] || ''),
+          customerName: String(row[15] || ''),
+          registerDateTime: formatDT(row[18]),   // ✅ แปลงเป็น String
+          confirmDateTime: formatDT(row[20]),    // ✅ แปลงเป็น String
+          statusTransport: String(row[22] || ''),
+          loadingDateTime: formatDT(row[23]),    // ✅ X: TimeStamp_Loading
+          remark: String(row[0] || '')
+        });
+      });
+    });
+
+    Logger.log('✅ getExportData result count: ' + result.length);
+    return { success: true, data: result };
+
+  } catch (e) {
+    Logger.log('❌ getExportData error: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+function getOntimeLateData(serviceFilter, startDate, endDate) {
+  try {
+    const tz = getTz();
+    const serviceTypes = serviceFilter === 'ALL'
+      ? ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC']
+      : [serviceFilter];
+
+    const result = [];
+
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+
+      const data = sheet.getRange(2, 1, lastRow - 1, 24).getValues();
+
+      data.forEach(row => {
+        const cellDate = row[4];
+        let dateKey = '';
+
+        if (cellDate instanceof Date) {
+          dateKey = Utilities.formatDate(cellDate, tz, 'yyyy-MM-dd');
+        } else if (cellDate) {
+          try {
+            const parts = String(cellDate).split('/');
+            if (parts.length === 3) {
+              dateKey = `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+            }
+          } catch(e) {}
+        }
+
+        // ✅ กรองตามช่วงวันที่
+        if (!dateKey || dateKey < startDate || dateKey > endDate) return;
+
+        const registerTs = row[18]; // S
+        const registerStr = registerTs instanceof Date
+          ? Utilities.formatDate(registerTs, tz, 'HH:mm')
+          : String(registerTs || '');
+
+        result.push({
+          serviceType: sType,
+          jobStatus: String(row[19] || ''),   // T: Status_Transport
+          shipment: String(row[2] || ''),     // C
+          truckNo: String(row[12] || ''),     // M
+          time: String(row[6] || ''),         // G
+          registerTimestamp: registerStr,
+          ontimeLate: String(row[22] || ''),   // W
+          confirmLoading: !!row[23]  // ✅ Column X มีค่าไหม
+        });
+      });
+    });
+
+    return { success: true, data: result };
+
+  } catch(e) {
+    return { success: false, message: e.message };
+  }
+}
+
+// ===============================
+// ✅ AUTO REPORT - AY & RJ Daily
+// ===============================
+
+const REPORT_FOLDER_ID = '1a3PB-lMNqpMuRpeqSgF3QFS6vC6ryFCt';
+
+/**
+ * ฟังก์ชันหลัก - รันทุก 1 ชั่วโมง
+ * ต้องตั้ง Trigger ด้วยตัวเอง (ดูด้านล่าง)
+ */
+function generateDailyReport() {
+  try {
+    const tz = getTz();
+    const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    const fileName = `Report_${today}`;
+
+    const folder = DriveApp.getFolderById(REPORT_FOLDER_ID);
+
+    // ✅ หาไฟล์ที่มีอยู่แล้ว หรือสร้างใหม่
+    let spreadsheet = findOrCreateSpreadsheet(folder, fileName);
+
+    // ✅ อัปเดต Sheet AY
+    updateReportSheet(spreadsheet, 'AY', today, tz);
+
+    // ✅ อัปเดต Sheet RJ
+    updateReportSheet(spreadsheet, 'RJ', today, tz);
+
+    Logger.log('✅ Report updated: ' + fileName);
+
+  } catch(e) {
+    Logger.log('❌ generateDailyReport error: ' + e.message);
+  }
+}
+
+/**
+ * หาไฟล์ที่มีชื่อนั้นใน Folder หรือสร้างใหม่
+ */
+function findOrCreateSpreadsheet(folder, fileName) {
+  // ค้นหาไฟล์ชื่อนี้ใน Folder
+  const files = folder.getFilesByName(fileName);
+
+  if (files.hasNext()) {
+    // ✅ มีอยู่แล้ว → เปิดใช้
+    const file = files.next();
+    Logger.log('📂 Found existing file: ' + fileName);
+    return SpreadsheetApp.openById(file.getId());
+  }
+
+  // ✅ ไม่มี → สร้างใหม่
+  const newSS = SpreadsheetApp.create(fileName);
+
+  // ย้ายไปใส่ใน Folder ที่กำหนด
+  const newFile = DriveApp.getFileById(newSS.getId());
+  folder.addFile(newFile);
+
+  // ลบออกจาก My Drive (ไม่ให้ซ้ำ)
+  DriveApp.getRootFolder().removeFile(newFile);
+
+  Logger.log('📄 Created new file: ' + fileName);
+  return newSS;
+}
+
+/**
+ * อัปเดตข้อมูลใน Sheet ตาม serviceType
+ */
+function updateReportSheet(spreadsheet, serviceType, dateStr, tz) {
+  try {
+    // ✅ หา Sheet หรือสร้างใหม่
+    let sheet = spreadsheet.getSheetByName(serviceType);
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(serviceType);
+    } else {
+      sheet.clearContents(); // ล้างข้อมูลเดิม
+    }
+
+    // ✅ Headers (เหมือนหน้า Export)
+    const headers = [
+      'วันที่', 'Service', 'ช่วงเวลา', 'สถานะ', 'Shipment',
+      'Pallet', 'ประเภทรถ', 'ทะเบียนรถ', 'ทะเบียนพ่วง', 'บริษัทขนส่ง',
+      'เบอร์ติดต่อ', 'ชื่อลูกค้า', 'รายละเอียด',
+      'BookDateTime', 'RegisterDateTime', 'ConfirmDateTime', 'Status ขนส่ง'
+    ];
+
+    // ✅ ดึงข้อมูลจาก Source Sheet
+    const ssId = SS_CONFIG[serviceType];
+    if (!ssId) {
+      Logger.log('❌ ไม่พบ SS_CONFIG สำหรับ ' + serviceType);
+      return;
+    }
+
+    const sourceSS = SpreadsheetApp.openById(ssId);
+    const sourceSheet = sourceSS.getSheetByName(SHEET_NAME) || sourceSS.getSheets()[0];
+    if (!sourceSheet) return;
+
+    const lastRow = sourceSheet.getLastRow();
+    if (lastRow < 2) {
+      // ✅ ไม่มีข้อมูล ใส่แค่ Header
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      formatHeaderRow(sheet, headers.length);
+      return;
+    }
+
+    const data = sourceSheet.getRange(2, 1, lastRow - 1, 23).getValues();
+    const rows = [];
+
+    data.forEach(row => {
+      const cellDate = row[4]; // Column E
+      let dateKey = '';
+
+      if (cellDate instanceof Date) {
+        dateKey = Utilities.formatDate(cellDate, tz, 'yyyy-MM-dd');
+      } else if (cellDate) {
+        try {
+          const parts = String(cellDate).split('/');
+          if (parts.length === 3) {
+            dateKey = `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+          } else {
+            dateKey = Utilities.formatDate(new Date(cellDate), tz, 'yyyy-MM-dd');
+          }
+        } catch(e) {}
+      }
+
+      // ✅ กรองเฉพาะวันนี้
+      if (dateKey !== dateStr) return;
+
+      // ✅ แปลง DateTime เป็น String
+      const formatDT = (val) => {
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+        return String(val);
+      };
+
+      rows.push([
+        dateKey,
+        serviceType,
+        String(row[6] || ''),      // G: ช่วงเวลา
+        String(row[1] || ''),      // B: สถานะ
+        "'" + String(row[2] || ''),      // C: Shipment (force text)
+        Number(row[10] || 0),      // K: Pallet
+        String(row[3] || ''),      // D: ประเภทรถ
+        String(row[12] || ''),     // M: ทะเบียนรถ
+        String(row[13] || ''),     // N: ทะเบียนพ่วง
+        String(row[5] || ''),      // F: บริษัทขนส่ง
+        String(row[9] || ''),      // J: เบอร์ติดต่อ
+        String(row[15] || ''),     // P: ชื่อลูกค้า
+        String(row[0] || ''),      // A: รายละเอียด
+        formatDT(row[11]),         // L: BookDateTime
+        formatDT(row[18]),         // S: RegisterDateTime
+        formatDT(row[20]),         // U: ConfirmDateTime
+        String(row[19] || '')      // T: Status ขนส่ง
+      ]);
+    });
+
+    // ✅ เขียน Header + Data
+    const allData = [headers, ...rows];
+    sheet.getRange(1, 1, allData.length, headers.length).setValues(allData);
+
+    // ✅ Format Header
+    formatHeaderRow(sheet, headers.length);
+
+    // ✅ บังคับ Column Shipment (E = คอลัมน์ที่ 5) เป็น Text
+    sheet.getRange(2, 5, Math.max(rows.length, 1), 1).setNumberFormat('@');
+
+    // ✅ Auto resize columns
+    sheet.autoResizeColumns(1, headers.length);
+
+    Logger.log(`✅ ${serviceType}: ${rows.length} rows written`);
+
+  } catch(e) {
+    Logger.log(`❌ updateReportSheet (${serviceType}) error: ` + e.message);
+  }
+}
+
+/**
+ * จัด Format Header Row ให้สวยงาม
+ */
+function formatHeaderRow(sheet, colCount) {
+  const headerRange = sheet.getRange(1, 1, 1, colCount);
+  headerRange.setBackground('#1e3a5f');
+  headerRange.setFontColor('#ffffff');
+  headerRange.setFontWeight('bold');
+  headerRange.setHorizontalAlignment('center');
+  sheet.setFrozenRows(1); // ✅ ล็อค Header Row
+}
+
+function debugAYBooking() {
+  try {
+    Logger.log('=== DEBUG AY BOOKING ===');
+    
+    // ✅ 1. เช็ค SS_CONFIG
+    const ssId = SS_CONFIG['AY'];
+    Logger.log('SS_ID: ' + ssId);
+    if (!ssId) {
+      Logger.log('❌ ไม่พบ SS_CONFIG[AY]');
+      return;
+    }
+
+    // ✅ 2. เปิด Spreadsheet
+    const ss = SpreadsheetApp.openById(ssId);
+    Logger.log('✅ เปิด SS ได้: ' + ss.getName());
+
+    // ✅ 3. เช็ค Sheet
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    Logger.log('Sheet Name: ' + sheet.getName());
+    Logger.log('Last Row: ' + sheet.getLastRow());
+
+    // ✅ 4. เช็ค Sheet2 (Capacity)
+    const sheet2 = ss.getSheetByName('Sheet2');
+    if (!sheet2) {
+      Logger.log('❌ ไม่พบ Sheet2 (Capacity)');
+    } else {
+      Logger.log('✅ พบ Sheet2');
+      Logger.log('Sheet2 Last Row: ' + sheet2.getLastRow());
+      const cap = sheet2.getRange(1, 1, Math.min(5, sheet2.getLastRow()), 8).getValues();
+      Logger.log('Sheet2 Sample: ' + JSON.stringify(cap));
+    }
+
+    // ✅ 5. ทดสอบ getSlotCapacities วันนี้
+    const tz = getTz();
+    const today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    Logger.log('Today: ' + today);
+
+    const result = getSlotCapacities('AY', today);
+    Logger.log('Capacities keys: ' + Object.keys(result.capacities).join(', '));
+    Logger.log('Raw Data count: ' + result.rawData.length);
+    Logger.log('Sample Capacities: ' + JSON.stringify(Object.entries(result.capacities).slice(0, 3)));
+
+  } catch(e) {
+    Logger.log('❌ Error: ' + e.message);
+    Logger.log('Stack: ' + e.stack);
+  }
+}
+
+function debugSheet2AY() {
+  const ss = SpreadsheetApp.openById("12RHZLVDADXZ6SeG4ClZeKAxR6-aTQzHQhSVA8uSVQgw");
+  const sheet2 = ss.getSheetByName('Sheet2');
+  
+  if (!sheet2) {
+    Logger.log('❌ ไม่พบ Sheet2');
+    return;
+  }
+  
+  const lastRow = sheet2.getLastRow();
+  Logger.log('Sheet2 Last Row: ' + lastRow);
+  
+  const slots = sheet2.getRange(2, 1, lastRow - 1, 1).getValues();
+  slots.forEach((row, i) => {
+    Logger.log(`Row ${i+2}: "${row[0]}"`);
+  });
+}
+
+function debugGetSlotCapacities() {
+  const result = getSlotCapacities('AY', '2026-03-10');
+  Logger.log('Type: ' + typeof result);
+  Logger.log('Result: ' + JSON.stringify(result));
+}
+
+// ✅ Config Google Sheet ปลายทาง
+const UPLOAD_SHEET_CONFIG = {
+  'ZSDR_SO':    { ssId: '1NMRitbOCgpbDX707kBOOC-gc4y9q5lmARGoSyAX0KD8', sheetName: 'SO' },
+  'ZSDR_DO':    { ssId: '1NMRitbOCgpbDX707kBOOC-gc4y9q5lmARGoSyAX0KD8', sheetName: 'DO' },
+  'ZSDRSO_MT':  { ssId: '15IwNoIkxWUfOEJfl9hJVFHClV3eOVdidx5ezJvZVwhM', sheetName: 'SO' }, // ✅ เพิ่ม
+  'ZSDRDO_MT':  { ssId: '15IwNoIkxWUfOEJfl9hJVFHClV3eOVdidx5ezJvZVwhM', sheetName: 'DO' }, // ✅ เพิ่ม
+  'Billing_TT': { ssId: null },
+  'Billing_MT': { ssId: null }
+};
+
+const UPLOAD_FOLDER_ID_CONFIG = '12qphW30157Qk2OqJJxjRzv3IQRHdSFU-';
+const DATA_BOOKING_MT_SS_ID = '15IwNoIkxWUfOEJfl9hJVFHClV3eOVdidx5ezJvZVwhM';
+const DATA_BOOKING_MT_SHEET_NAME = 'DataBooking';
+
+function uploadFilesToDrive(fileDataList, folderId) {
+  try {
+    const folder = DriveApp.getFolderById(folderId || UPLOAD_FOLDER_ID_CONFIG);
+    const results = [];
+    const errors = [];
+
+    fileDataList.forEach(fileData => {
+      try {
+        const { fileName, mimeType, base64 } = fileData;
+
+        // ✅ 1. ลบไฟล์เดิมใน Folder
+        const existing = folder.getFilesByName(fileName);
+        while (existing.hasNext()) {
+          existing.next().setTrashed(true);
+        }
+
+        // ✅ 2. สร้างไฟล์ใหม่ชื่อเดิม
+        const blob = Utilities.newBlob(
+          Utilities.base64Decode(base64),
+          mimeType,
+          fileName
+        );
+        const newFile = folder.createFile(blob);
+        Logger.log('✅ Uploaded: ' + fileName);
+
+        // ✅ 3. คัดลอกข้อมูลเข้า Google Sheet (ถ้ามี config)
+        const sheetConfig = UPLOAD_SHEET_CONFIG[fileName];
+        if (sheetConfig?.ssId) {
+          try {
+            copyXlsxToSheet_(newFile, sheetConfig.ssId, sheetConfig.sheetName);
+            Logger.log('✅ Copied to Sheet: ' + sheetConfig.sheetName);
+            results.push(`${fileName} → Sheet ${sheetConfig.sheetName} ✅`);
+
+            // ✅ ถ้า Upload SO หรือ DO → รัน updateDataBooking + lookupDataBookingToSO
+            if (['ZSDR_SO', 'ZSDR_DO'].includes(fileName)) {
+              try {
+                updateDataBooking();
+                Logger.log('✅ updateDataBooking TT เสร็จ');
+              } catch(dbErr) {
+                Logger.log('❌ updateDataBooking error: ' + dbErr.message);
+              }
+            }
+
+            if (['ZSDRSO_MT', 'ZSDRDO_MT'].includes(fileName)) {
+              try {
+                // ✅ ไม่รันทันที แต่ตั้ง Trigger รันหลัง 2 นาทีแทน
+                ScriptApp.newTrigger('updateDataBookingMT')
+                  .timeBased()
+                  .after(2 * 60 * 1000)
+                  .create();
+                Logger.log('✅ ตั้ง Trigger updateDataBookingMT เสร็จ');
+              } catch(triggerErr) {
+                Logger.log('❌ Trigger error: ' + triggerErr.message);
+              }
+            }
+
+          } catch(copyErr) {
+            Logger.log('❌ Copy error: ' + copyErr.message);
+            errors.push(`${fileName} Upload สำเร็จแต่ Copy ไม่สำเร็จ: ${copyErr.message}`);
+          }
+        } else {
+          results.push(`${fileName} ✅`);
+        }
+
+      } catch(fileErr) {
+        Logger.log('❌ File error: ' + fileErr.message);
+        errors.push(`${fileData.fileName}: ${fileErr.message}`);
+      }
+    });
+
+    if (errors.length > 0) {
+      return {
+        success: false,
+        message: `มีข้อผิดพลาด: ${errors.join(', ')}`
+      };
+    }
+
+    return {
+      success: true,
+      message: `Upload สำเร็จ: ${results.join(', ')}`
+    };
+
+  } catch(e) {
+    Logger.log('❌ uploadFilesToDrive error: ' + e.message);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + e.message
+    };
+  }
+}
+
+/**
+ * ✅ อ่านข้อมูลจากไฟล์ xlsx ใน Drive แล้วคัดลอกเข้า Google Sheet
+ */
+function copyXlsxToSheet_(driveFile, targetSsId, targetSheetName) {
+  // ✅ Copy ไฟล์ xlsx ไปที่ Root ก่อน แล้ว Convert เป็น Google Sheet
+  const tempName = 'TEMP_IMPORT_' + new Date().getTime();
+  
+  // ✅ Copy ไฟล์ไปที่ Root Drive
+  const tempFile = driveFile.makeCopy(tempName, DriveApp.getRootFolder());
+  
+  try {
+    // ✅ Convert เป็น Google Sheet โดยใช้ Drive API v2
+    const resource = {
+      title: tempName,
+      mimeType: 'application/vnd.google-apps.spreadsheet'
+    };
+    
+    const convertedFile = Drive.Files.copy(resource, tempFile.getId(), { convert: true });
+    
+    try {
+      // ✅ เปิด Converted Sheet
+      const tempSS = SpreadsheetApp.openById(convertedFile.id);
+      const tempSheet = tempSS.getSheets()[0];
+      const lastRow = tempSheet.getLastRow();
+      const lastCol = tempSheet.getLastColumn();
+
+      if (lastRow === 0 || lastCol === 0) {
+        throw new Error('ไฟล์ไม่มีข้อมูล');
+      }
+
+      const data = tempSheet.getRange(1, 1, lastRow, lastCol).getValues();
+
+      // ✅ เปิด Target Sheet แล้วลบข้อมูลเดิม
+      const targetSS = SpreadsheetApp.openById(targetSsId);
+      let targetSheet = targetSS.getSheetByName(targetSheetName);
+
+      if (!targetSheet) {
+        targetSheet = targetSS.insertSheet(targetSheetName);
+      } else {
+        targetSheet.clearContents();
+      }
+
+      // ✅ วางข้อมูลทั้งหมด
+      targetSheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+      SpreadsheetApp.flush();
+
+      // ✅ Clean Sheet เฉพาะ SO เท่านั้น
+      if (targetSheetName === 'SO') {
+        cleanSheetData(targetSheet);
+      }
+      // ✅ DO ไม่ต้องทำ cleanSheetData
+
+      Logger.log(`✅ Copied ${data.length} rows x ${data[0].length} cols to ${targetSheetName}`);
+
+      // ✅ ถ้าเป็น Sheet SO → เขียนสูตรอัตโนมัติ
+      if (targetSheetName === 'SO') {
+        writeFormulasToSO(targetSsId, targetSheetName);
+      }
+
+    } finally {
+      // ✅ ลบ Converted Temp File
+      try { DriveApp.getFileById(convertedFile.id).setTrashed(true); } catch(e) {}
+    }
+
+  } finally {
+    // ✅ ลบ Copied Temp File
+    try { tempFile.setTrashed(true); } catch(e) {}
+  }
+}
+
+function debugCopyXlsx() {
+  try {
+    const folder = DriveApp.getFolderById('12qphW30157Qk2OqJJxjRzv3IQRHdSFU-');
+    
+    // ✅ เช็คว่าหาไฟล์ ZSDR_SO เจอไหม
+    const files = folder.getFilesByName('ZSDR_SO');
+    if (!files.hasNext()) {
+      Logger.log('❌ ไม่พบไฟล์ ZSDR_SO ใน Folder');
+      return;
+    }
+    
+    const file = files.next();
+    Logger.log('✅ พบไฟล์: ' + file.getName() + ' | MimeType: ' + file.getMimeType());
+    
+    // ✅ ทดสอบ Copy
+    copyXlsxToSheet_(file, '1NMRitbOCgpbDX707kBOOC-gc4y9q5lmARGoSyAX0KD8', 'SO');
+    Logger.log('✅ Copy สำเร็จ');
+    
+  } catch(e) {
+    Logger.log('❌ Error: ' + e.message);
+    Logger.log('Stack: ' + e.stack);
+  }
+}
+
+/**
+ * ✅ เขียน Header + สูตร Column BC-BM ใน Sheet SO
+ */
+function writeFormulasToSO(targetSsId, targetSheetName) {
+  try {
+    const ss = SpreadsheetApp.openById(targetSsId);
+    const sheet = ss.getSheetByName(targetSheetName);
+    if (!sheet) throw new Error('ไม่พบ Sheet: ' + targetSheetName);
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      Logger.log('⚠️ ไม่มีข้อมูลใน Sheet SO');
+      return;
+    }
+
+    Logger.log('📝 เขียนสูตร ArrayFormula SO lastRow: ' + lastRow);
+
+    const START_COL = 55; // BC
+
+    // ✅ Headers
+    const headers = [
+      'Qty Bottle',          // BC
+      'DO No',               // BD
+      'DO Date',             // BE
+      'Plan GI Date',        // BF
+      'Shipment Date',       // BG
+      'Shipment Number',     // BH
+      'Delivery Date on DO', // BI
+      'Billing Date',        // BJ
+      'Channel TT',          // BK
+      'Bill No',             // BL
+      'Reason for Pending',  // BM
+      'AgentName',           // BN
+      'SpecProcessing',      // BO
+      'TruckType'            // BP
+    ];
+
+    sheet.getRange(1, START_COL, 1, headers.length).setValues([headers]);
+
+    // ✅ Format Header
+    const headerRange = sheet.getRange(1, START_COL, 1, headers.length);
+    headerRange.setBackground('#1e3a5f');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+
+    // ✅ ลบสูตรเดิม Row 2 ลงไปก่อน
+    sheet.getRange(2, START_COL, lastRow - 1, headers.length).clearContent();
+
+    // ✅ เขียน ArrayFormula แค่ Row 2 แถวเดียว
+    const arrayFormulas = [
+      // BC: Qty Bottle
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IF(M2:M>=1,AM2:AM,0)))`,
+      // BD: DO No
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(A2:A,DO!C:D,2,0),"")))`,
+      // BE: DO Date
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(A2:A,DO!C:O,13,0),"")))`,
+      // BF: Plan GI Date
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BD2:BD,DO!D:P,13,0),"")))`,
+      // BG: Shipment Date
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BD2:BD,DO!D:BR,67,0),"")))`,
+      // BH: Shipment Number
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BD2:BD,DO!D:G,4,0),"")))`,
+      // BI: Delivery Date on DO
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BD2:BD,DO!D:V,19,0),"")))`,
+      // BJ: Billing Date
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BD2:BD,DO!D:T,17,0),"")))`,
+      // BK: Channel TT
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,LEFT(AE2:AE,3)))`,
+      // BL: Bill No
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BD2:BD,DO!D:BG,55,0),"")))`,
+      // BM: Reason for Pending
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IF(BD2:BD="","รอสร้าง DO",IF((BD2:BD<>"")*(BJ2:BJ<>""),"ส่งแล้ว",IF((BD2:BD<>"")*(BH2:BH<>"")*(BJ2:BJ=""),"สร้าง DO แล้ว",IF((BD2:BD<>"")*(BH2:BH=""),"รอสร้าง Shipment",""))))))`,
+      // BN: AgentName
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BH2:BH,DO!G:BE,51,0),"")))`,
+      // BO: SpecProcessing
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BH2:BH,DO!G:BN,60,0),"")))`,
+      // BP: TruckType
+      `=ARRAYFORMULA(IF(ROW(A2:A)>ROW(A${lastRow}),,IFERROR(VLOOKUP(BO2:BO,TruckType!A:C,3,0),"")))`
+    ];
+
+    // ✅ เขียนทีละ Column แค่ Row 2
+    arrayFormulas.forEach((formula, idx) => {
+      sheet.getRange(2, START_COL + idx).setFormula(formula);
+    });
+
+    // ✅ Format Column BV (74) เป็น Text
+    const dataRows = lastRow - 1;
+    sheet.getRange(2, 74, dataRows, 1).setNumberFormat('@');
+
+    SpreadsheetApp.flush();
+    Logger.log('✅ เขียน ArrayFormula SO เสร็จ');
+
+  } catch(e) {
+    Logger.log('❌ writeFormulasToSO error: ' + e.message);
+    throw e;
+  }
+}
+
+/**
+ * ✅ ลบ Row ที่ Column A เป็นค่า Blank (เร็วกว่าเดิม)
+ */
+function deleteBlankRowsInColA(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const lastCol = sheet.getLastColumn();
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // ✅ เก็บเฉพาะ Row ที่ Column A ไม่ว่าง
+  const filtered = data.filter(row => String(row[0] || '').trim() !== '');
+
+  // ✅ ลบข้อมูลเดิมทั้งหมด
+  sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+
+  // ✅ เขียนใหม่ทั้งหมดครั้งเดียว
+  if (filtered.length > 0) {
+    sheet.getRange(2, 1, filtered.length, lastCol).setValues(filtered);
+  }
+
+  Logger.log('✅ ลบ Blank Rows เสร็จ เหลือ: ' + filtered.length + ' rows');
+}
+
+// ===============================
+// ✅ DataBooking - AY + RJ
+// ===============================
+
+const DATA_BOOKING_SS_ID = '1NMRitbOCgpbDX707kBOOC-gc4y9q5lmARGoSyAX0KD8';
+const DATA_BOOKING_SHEET_NAME = 'DataBooking';
+
+function updateDataBooking() {
+  try {
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+
+    // ✅ หา Sheet DataBooking หรือสร้างใหม่
+    let sheet = ss.getSheetByName(DATA_BOOKING_SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(DATA_BOOKING_SHEET_NAME);
+    } else {
+      sheet.clearContents();
+    }
+
+    // ✅ Headers เหมือนหน้า Export
+    const headers = [
+      'วันที่', 'Service', 'ช่วงเวลา', 'สถานะ', 'Shipment',
+      'Pallet', 'ประเภทรถ', 'ทะเบียนรถ', 'ทะเบียนพ่วง', 'บริษัทขนส่ง',
+      'เบอร์ติดต่อ', 'ชื่อลูกค้า', 'รายละเอียด',
+      'BookDateTime', 'RegisterDateTime', 'ConfirmDateTime', 'Status ขนส่ง',
+      'เบอร์คนขับ' // ✅ R เพิ่ม
+    ];
+
+    const allRows = [headers];
+
+    // ✅ ดึงข้อมูลจาก AY และ RJ
+    ['AY', 'RJ'].forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+
+      const sourceSS = SpreadsheetApp.openById(ssId);
+      const sourceSheet = sourceSS.getSheetByName(SHEET_NAME) || sourceSS.getSheets()[0];
+      if (!sourceSheet) return;
+
+      const lastRow = sourceSheet.getLastRow();
+      if (lastRow < 2) return;
+
+      const data = sourceSheet.getRange(2, 1, lastRow - 1, 23).getValues();
+
+      const formatDT = (val) => {
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+        return String(val);
+      };
+
+      data.forEach(row => {
+        const cellDate = row[4];
+        let dateKey = '';
+
+        if (cellDate instanceof Date) {
+          dateKey = Utilities.formatDate(cellDate, tz, 'yyyy-MM-dd');
+        } else if (cellDate) {
+          try {
+            dateKey = Utilities.formatDate(new Date(cellDate), tz, 'yyyy-MM-dd');
+          } catch(e) {}
+        }
+
+        if (!dateKey) return;
+
+        allRows.push([
+          dateKey,
+          sType,
+          String(row[6] || ''),       // G: ช่วงเวลา
+          String(row[1] || ''),       // B: สถานะ
+          "'" + String(row[2] || ''), // C: Shipment (force text)
+          Number(row[10] || 0),       // K: Pallet
+          String(row[3] || ''),       // D: ประเภทรถ
+          String(row[12] || ''),      // M: ทะเบียนรถ
+          (() => {
+            const val = row[13];
+            if (!val) return '';
+            if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+            return String(val);
+          })(),                        // N: ทะเบียนพ่วง
+          String(row[5] || ''),       // F: บริษัทขนส่ง
+          String(row[9] || ''),       // J: เบอร์ติดต่อ
+          String(row[15] || ''),      // P: ชื่อลูกค้า
+          String(row[0] || ''),       // A: รายละเอียด
+          formatDT(row[11]),          // L: BookDateTime
+          formatDT(row[18]),          // S: RegisterDateTime
+          formatDT(row[20]),          // U: ConfirmDateTime
+          String(row[19] || ''),
+          (() => {
+            const val = row[9];
+            if (!val || val === 0 || val === '0') return '';
+            return "'" + String(val).replace(/\D/g, '');
+          })()   // ✅ R: เบอร์คนขับ Column J
+        ]);
+      });
+
+      Logger.log(`✅ ${sType}: ${data.length} rows`);
+    });
+
+    // ✅ เขียนข้อมูลทั้งหมด
+    if (allRows.length > 1) {
+      sheet.getRange(1, 1, allRows.length, headers.length).setValues(allRows);
+    }
+
+    // ✅ Format Header
+    const headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setBackground('#1e3a5f');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+    headerRange.setHorizontalAlignment('center');
+    sheet.setFrozenRows(1);
+
+    // ✅ Format Shipment column เป็น Text
+    sheet.getRange(2, 5, Math.max(allRows.length - 1, 1), 1).setNumberFormat('@');
+
+    // ✅ Auto resize
+    sheet.autoResizeColumns(1, headers.length);
+
+    SpreadsheetApp.flush();
+    Logger.log(`✅ DataBooking updated: ${allRows.length - 1} rows`);
+
+    // ✅ Lookup ไปยัง Sheet SO อัตโนมัติ
+    lookupDataBookingToSO();
+
+    return { success: true, message: `อัปเดต DataBooking สำเร็จ ${allRows.length - 1} rows` };
+
+  } catch(e) {
+    Logger.log('❌ updateDataBooking error: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * ✅ Lookup DataBooking → Sheet SO
+ * Key: SO Column BH (Shipment 7 หลัก) → DataBooking Column E (อาจมีหลายเลข)
+ */
+function lookupDataBookingToSO() {
+  try {
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+
+    // ✅ เปิด Sheet DataBooking
+    const dbSheet = ss.getSheetByName(DATA_BOOKING_SHEET_NAME);
+    if (!dbSheet) throw new Error('ไม่พบ Sheet DataBooking');
+
+    const dbLastRow = dbSheet.getLastRow();
+    if (dbLastRow < 2) {
+      Logger.log('⚠️ DataBooking ไม่มีข้อมูล');
+      return;
+    }
+
+    // ✅ อ่านข้อมูล DataBooking ที่ต้องการ
+    const dbData = dbSheet.getRange(2, 1, dbLastRow - 1, 18).getValues();
+
+    // ✅ สร้าง Map: shipmentNo (7 หลัก) → { colC, colO, colP, colH, colI }
+    const shipmentMap = {};
+
+    dbData.forEach(row => {
+      const shipmentRaw = String(row[4] || '').replace(/^'/, '').trim(); // Column E
+      if (!shipmentRaw) return;
+
+      const formatVal = (val) => {
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+        return String(val);
+      };
+
+      const colA = (() => {
+        const val = row[0];
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+        return String(val);
+      })();
+      const colC = formatVal(row[2]);      // Column C
+      const colH = String(row[7] || '');   // Column H
+      const colI = String(row[8] || '');   // Column I
+      const colO = formatVal(row[14]);     // Column O
+      const colP = formatVal(row[15]);     // Column P
+      const colQ = String(row[16] || '');  // Column Q ✅ เพิ่ม
+      const colR = (() => {
+        const val = String(row[17] || '').trim();
+        if (!val || val === '0' || val === '000') return '';
+        return "'" + val; // ✅ บังคับเป็น Text ไม่ให้ 0 หายไป
+      })();
+
+      // ✅ Split ด้วย , แล้ว Loop แต่ละเลข
+      shipmentRaw.split(',').forEach(s => {
+        const key = s.trim();
+        if (key.length === 7) {
+          shipmentMap[key] = { colA, colC, colO, colP, colH, colI, colQ, colR }; // ✅ เพิ่ม colR
+        }
+      });
+    });
+
+    Logger.log('✅ Shipment Map size: ' + Object.keys(shipmentMap).length);
+
+    // ✅ เปิด Sheet SO
+    const soSheet = ss.getSheetByName('SO');
+    if (!soSheet) throw new Error('ไม่พบ Sheet SO');
+
+    const soLastRow = soSheet.getLastRow();
+    if (soLastRow < 2) {
+      Logger.log('⚠️ Sheet SO ไม่มีข้อมูล');
+      return;
+    }
+
+    const headers = [
+      'BookingTime',    // BQ (69)
+      'RegisterTime',   // BR (70)
+      'ConfirmTime',    // BS (71)
+      'TruckNo',        // BT (72)
+      'TrailerNo',      // BU (73)
+      'BookingDate',    // BV (74)
+      'Status',         // BW (75)
+      'DriverPhone'     // BX (76) ✅ เพิ่ม
+    ];
+    soSheet.getRange(1, 69, 1, headers.length).setValues([headers]);
+
+    // ✅ Format Header
+    const headerRange = soSheet.getRange(1, 69, 1, headers.length);
+    headerRange.setBackground('#1e3a5f');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+
+    // ✅ อ่าน Column BH (60) ของ Sheet SO
+    const bhValues = soSheet.getRange(2, 60, soLastRow - 1, 1).getValues();
+
+    // ✅ สร้าง Array ผลลัพธ์
+    const resultRows = bhValues.map(row => {
+      const bhVal = String(row[0] || '').trim();
+      if (!bhVal) return ['', '', '', '', '', '', '', ''];
+
+      const found = shipmentMap[bhVal];
+      if (!found) return ['', '', '', '', '', '', '', ''];
+
+      return [
+        found.colC,  // BQ
+        found.colO,  // BR
+        found.colP,  // BS
+        found.colH,  // BT
+        found.colI,  // BU
+        found.colA,  // BV
+        found.colQ,  // BW
+        found.colR   // BX ✅ เพิ่ม
+      ];
+    });
+
+    soSheet.getRange(2, 69, resultRows.length, 8).setValues(resultRows);
+    SpreadsheetApp.flush();
+
+    const found = resultRows.filter(r => r[0] !== '').length;
+    Logger.log(`✅ lookupDataBookingToSO เสร็จ: พบ ${found} / ${resultRows.length} rows`);
+
+  } catch(e) {
+    Logger.log('❌ lookupDataBookingToSO error: ' + e.message);
+    throw e;
+  }
+}
+
+function getChainTrackData(soNumber) {
+  try {
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+    const sheet = ss.getSheetByName('SO');
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet SO' };
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: false, message: 'ไม่มีข้อมูลใน Sheet SO' };
+
+    // ✅ อ่านข้อมูลทั้งหมด
+    const data = sheet.getRange(2, 1, lastRow - 1, 76).getValues();
+
+    // ✅ ค้นหาทุก Row ที่มี SO เดียวกัน
+    const rows = data.filter(r => String(r[0] || '').trim() === soNumber.trim());
+
+    if (rows.length === 0) {
+      return { success: false, message: `ไม่พบ SO: ${soNumber}` };
+    }
+
+    // ✅ ใช้ Row แรกสำหรับ Tracking
+    const row = rows[0];
+
+    // ✅ ดึงรายการสินค้าทุก Row
+    const items = rows.map(r => ({
+      materialCode: String(r[10] || ''),  // K
+      materialName: String(r[11] || ''),  // L
+      qtyBox:       Number(r[12] || 0),   // M
+      qtyBottle:    Number(r[54] || 0),   // BC
+    }));
+
+    const companyName  = String(row[33] || ''); // AH
+    const customerCode = String(row[32] || ''); // AG
+    const channel      = String(row[62] || ''); // BK
+
+    // ✅ เพิ่ม Debug ตรงนี้
+    Logger.log('BV raw: ' + row[73]);
+    Logger.log('BV type: ' + typeof row[73]);
+    Logger.log('BV instanceof Date: ' + (row[73] instanceof Date));
+
+    const formatDate = (val) => {
+      if (!val) return '';
+      if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+      // ✅ ถ้าเป็น String ส่งกลับเลย ไม่ต้องแปลง
+      return String(val).trim();
+    };
+
+    const formatDateTime = (val) => {
+      if (!val) return '';
+      if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+      // ✅ ถ้าเป็น String รูป dd/MM/yyyy HH:mm อยู่แล้ว ส่งกลับเลย
+      const str = String(val).trim();
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) return str;
+      return str;
+    };
+
+    return {
+      success: true,
+      data: {
+        // Step 1: Sales Order
+        soNumber:       String(row[0] || ''),       // A
+        soDate:         formatDate(row[4]),          // E
+        shopName:       String(row[33] || ''),       // AH ✅ เพิ่ม
+        province:       String(row[53] || ''),       // BB ✅ เพิ่ม
+
+        // Step 2: Delivery Order
+        doNumber:       String(row[55] || ''),       // BD
+        doDate:         formatDate(row[56]),         // BE
+
+        // Step 3: Shipment
+        shipmentNumber: String(row[59] || ''),       // BH
+        shipmentDate:   formatDate(row[58]),         // BG
+
+        // Step 4: Plan Load Time
+        bookingDate:    String(row[73] || ''),        // BV
+        bookingTime:    String(row[68] || ''),         // BQ
+        agentName:      String(row[65] || ''),        // BN ✅ เพิ่ม
+
+        // Step 5: รถถึงคลัง
+        registerTime:   String(row[69] || ''),       // BR
+        truckType:      String(row[67] || ''),       // BP
+        truckNo:        String(row[71] || ''),       // BT
+        trailerNo:      String(row[72] || ''),       // BU
+        driverPhone:    (() => {                     // BX ✅ เพิ่ม
+          const val = String(row[75] || '').replace(/^'/, '').trim();
+          if (!val || val === '0') return '';
+          // Format 000-000-0000
+          const digits = val.replace(/\D/g, '');
+          if (digits.length === 10) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
+          return val;
+        })(),
+
+        // Step 6: โหลดเสร็จ
+        // ✅ Step 6: ดู BJ ก่อน ถ้าไม่มีให้ดู BS
+        billingDate: (() => {
+          const bj = row[61]; // BJ
+          const bs = row[70]; // BS
+          if (bj) {
+            if (bj instanceof Date) return Utilities.formatDate(bj, tz, 'dd/MM/yyyy');
+            return String(bj).trim();
+          }
+          if (bs) {
+            if (bs instanceof Date) return Utilities.formatDate(bs, tz, 'dd/MM/yyyy HH:mm');
+            return String(bs).trim();
+          }
+          return '';
+        })(),
+        companyName,   // ✅ เพิ่ม
+        customerCode,  // ✅ เพิ่ม
+        channel,       // ✅ เพิ่ม
+        items          // ✅ เพิ่ม
+      }
+    };
+
+  } catch(e) {
+    Logger.log('❌ getChainTrackData error: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+function debugChainTrack() {
+  const result = getChainTrackData('2100031393');
+  Logger.log('billingDate: ' + result.data.billingDate);
+  Logger.log('full data: ' + JSON.stringify(result.data));
+}
+
+function debugWriteFormulas() {
+  writeFormulasToSO('1NMRitbOCgpbDX707kBOOC-gc4y9q5lmARGoSyAX0KD8', 'SO');
+}
+
+function reprocessOntimeLate() {
+  try {
+    const tz = getTz();
+    const serviceTypes = ['AY', 'RJ', 'AY_EXPORT', 'AY_OEM', 'AY_FOC'];
+    let updated = 0;
+
+    serviceTypes.forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+
+      const ss = SpreadsheetApp.openById(ssId);
+      const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+      if (!sheet) return;
+
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return;
+
+      const data = sheet.getRange(2, 1, lastRow - 1, 23).getValues();
+
+      data.forEach((row, i) => {
+        const registerTs = row[18]; // S: TimeStamp_Register
+        if (!registerTs) return;   // ถ้าไม่มี Checkin ข้ามไป
+
+        const rowNum = i + 2;
+        updateStatusTransport(ssId, rowNum, registerTs);
+        updated++;
+      });
+    });
+
+    Logger.log('✅ Reprocess เสร็จ: ' + updated + ' rows');
+
+  } catch(e) {
+    Logger.log('❌ reprocessOntimeLate error: ' + e.message);
+  }
+}
+
+/**
+ * ✅ ลบค่าใน Columns ที่ระบุ ที่ไม่ใช่ค่าว่าง
+ */
+function clearColumns(sheet, colNumbers) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  colNumbers.forEach(colNum => {
+    const colData = sheet.getRange(2, colNum, lastRow - 1, 1).getValues();
+    const clearRanges = [];
+
+    colData.forEach((row, i) => {
+      const val = String(row[0] || '').trim();
+      if (val !== '') {
+        clearRanges.push(i + 2); // Row index
+      }
+    });
+
+    clearRanges.forEach(rowIndex => {
+      sheet.getRange(rowIndex, colNum).clearContent();
+    });
+
+    Logger.log(`✅ ลบค่าใน Column ${colNum} เสร็จ`);
+  });
+}
+
+/**
+ * ✅ ลบ Row ที่ Column M = 0 (เร็วกว่าเดิม)
+ */
+function deleteZeroRowsInColM(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const lastCol = sheet.getLastColumn();
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // ✅ เก็บเฉพาะ Row ที่ Column M (index 12) ไม่เป็น 0
+  const filtered = data.filter(row => Number(row[12] || 0) !== 0);
+
+  // ✅ ลบข้อมูลเดิมทั้งหมด
+  sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+
+  // ✅ เขียนใหม่ทั้งหมดครั้งเดียว
+  if (filtered.length > 0) {
+    sheet.getRange(2, 1, filtered.length, lastCol).setValues(filtered);
+  }
+
+  Logger.log('✅ ลบ Zero Rows (M=0) เสร็จ เหลือ: ' + filtered.length + ' rows');
+}
+
+function confirmLoadingNewTransaction(sheetId, rowIndex) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(sheetId);
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
+    if (!sheet) {
+      lock.releaseLock();
+      return { success: false, message: 'ไม่พบ Sheet' };
+    }
+
+    const now = new Date();
+
+    // ✅ เช็คว่ายืนยันแล้วหรือยัง (Column X = 24)
+    const existing = sheet.getRange(rowIndex, 24).getValue();
+    if (existing) {
+      lock.releaseLock();
+      return { success: false, message: 'รายการนี้ยืนยันไปแล้ว' };
+    }
+
+    // ✅ บันทึก Timestamp ลง Column X (24) เท่านั้น ไม่เปลี่ยน Status
+    sheet.getRange(rowIndex, 24).setValue(now);
+    SpreadsheetApp.flush();
+
+    lock.releaseLock();
+    return { success: true, message: 'ยืนยันการโหลดสินค้าสำเร็จ' };
+
+  } catch(e) {
+    try { lock.releaseLock(); } catch(ex) {}
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + e.message };
+  }
+}
+
+function getDailyDashboardData(startDate, endDate) {
+  try {
+    const tz = getTz();
+    const today = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy');
+
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+    const sheet = ss.getSheetByName('SO');
+    if (!sheet) return { success: false, message: 'ไม่พบ Sheet SO' };
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { success: false, message: 'ไม่มีข้อมูล' };
+
+    // ✅ อ่านถึง Column BV (75)
+    const data = sheet.getRange(2, 1, lastRow - 1, 75).getValues();
+
+    // ✅ Cards 1-5
+    let soTotal = 0;
+    let sent = 0;
+    let waitBilling = 0;
+    let waitShipment = 0;
+    let waitDO = 0;
+
+    // ✅ Cards 6-10 (วันนี้)
+    let todayShipmentSet = new Set();
+    let todayQty = 0;
+    let custcQty = 0;
+    let ayQty = 0;
+    let rjQty = 0;
+
+    // ✅ กราฟ
+    const agentMap = {};
+
+    data.forEach(row => {
+      const bc = Number(row[54] || 0);  // BC (index 54)
+      const bm = String(row[64] || '').trim(); // BM (index 64)
+      const bv = String(row[73] || '').trim(); // BV (index 73)
+      const bh = String(row[59] || '').trim(); // BH (index 59)
+      const aj = String(row[35] || '').trim(); // AJ (index 35)
+      const u  = String(row[20] || '').trim(); // U (index 20)
+
+      // ✅ Card 1-5: กรองตาม Column E
+      const cellDateE = row[4];
+      let dateKeyE = '';
+      if (cellDateE instanceof Date) {
+        dateKeyE = Utilities.formatDate(cellDateE, tz, 'yyyy-MM-dd');
+      } else if (cellDateE) {
+        try { dateKeyE = Utilities.formatDate(new Date(cellDateE), tz, 'yyyy-MM-dd'); } catch(e) {}
+      }
+
+      if (dateKeyE >= startDate && dateKeyE <= endDate) {
+        soTotal += bc;  // ✅ Card 1: รวมทุก Row ที่อยู่ในช่วงวันที่
+      }
+
+      // ✅ Card 2-5: กรองตาม Column BJ ที่มีข้อมูล
+      const cellDateBJ = row[61]; // BJ (index 61)
+      let dateKeyBJ = '';
+      if (cellDateBJ instanceof Date) {
+        dateKeyBJ = Utilities.formatDate(cellDateBJ, tz, 'yyyy-MM-dd');
+      } else if (cellDateBJ) {
+        try { dateKeyBJ = Utilities.formatDate(new Date(cellDateBJ), tz, 'yyyy-MM-dd'); } catch(e) {}
+      }
+
+      // ✅ Card 2: ส่งแล้ว → กรองตาม Column BJ
+      if (dateKeyBJ >= startDate && dateKeyBJ <= endDate) {
+        if (bm === 'ส่งแล้ว') sent += bc;
+      }
+
+      // ✅ Card 3-5: กรองตาม Column E เหมือน Card 1
+      if (dateKeyE >= startDate && dateKeyE <= endDate) {
+        if (bm === 'สร้าง DO แล้ว') waitBilling += bc;
+        else if (bm === 'รอสร้าง Shipment') waitShipment += bc;
+        else if (bm === 'รอสร้าง DO') waitDO += bc;
+      }
+
+      // ✅ Cards 6-10: กรองตาม Column BV = วันนี้
+      if (bv === today) {
+        // Card 6: Unique Shipment
+        if (bh) todayShipmentSet.add(bh);
+
+        // Card 7: จัดส่งวันนี้
+        todayQty += bc;
+
+        // Card 8: ลูกค้าเข้ารับ
+        if (aj === 'CUSTC') custcQty += bc;
+
+        // Card 9: AY
+        if (u.endsWith('11') && aj !== 'CUSTC') ayQty += bc;
+
+        // Card 10: RJ
+        if (u.endsWith('15') && aj !== 'CUSTC') rjQty += bc;
+      }
+
+      // ✅ กราฟ: กรองตาม Column E
+      if (dateKeyE >= startDate && dateKeyE <= endDate) {
+        const agent = String(row[64] || '').trim(); // BM
+        if (agent && bc > 0) {
+          agentMap[agent] = (agentMap[agent] || 0) + bc;
+        }
+      }
+    });
+
+    const chartData = Object.entries(agentMap)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+
+    // ✅ ดึงข้อมูล Table วันนี้ พร้อม Sum ขวดตามร้านค้า + ช่วงเวลา
+    const todayTableMap = {};
+    data.forEach(row => {
+      const bv = String(row[73] || '').trim();
+      if (bv !== today) return;
+
+      const shopName = String(row[33] || '').trim();
+      const timeSlot = String(row[68] || '').trim();
+      const qty      = Number(row[38] || 0);
+      const status   = String(row[74] || '').trim();
+
+      const key = `${shopName}||${timeSlot}`;
+      if (!todayTableMap[key]) {
+        todayTableMap[key] = { shopName, timeSlot, qty: 0, status };
+      }
+      todayTableMap[key].qty += qty;
+      if (status) todayTableMap[key].status = status;
+    });
+
+    const todayTableData = Object.values(todayTableMap)
+      .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+
+    return {
+      success: true,
+      cards: {
+        soTotal, sent, waitBilling, waitShipment, waitDO,
+        todayShipment: todayShipmentSet.size,
+        todayQty, custcQty, ayQty, rjQty
+      },
+      data: chartData,
+      todayTable: todayTableData // ✅ เพิ่ม
+    };
+
+  } catch(e) {
+    Logger.log('❌ getDailyDashboardData error: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+function debugClearColumns() {
+  const ss = SpreadsheetApp.openById('1NMRitbOCgpbDX707kBOOC-gc4y9q5lmARGoSyAX0KD8');
+  const sheet = ss.getSheetByName('SO');
+  if (!sheet) {
+    Logger.log('❌ ไม่พบ Sheet SO');
+    return;
+  }
+  clearColumns(sheet, [35, 44]); // AI=35, AR=44
+  Logger.log('✅ เสร็จแล้ว');
+}
+
+function debugLookupDriverPhone() {
+  try {
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+    const dbSheet = ss.getSheetByName(DATA_BOOKING_SHEET_NAME);
+    if (!dbSheet) {
+      Logger.log('❌ ไม่พบ Sheet DataBooking');
+      return;
+    }
+
+    const lastRow = dbSheet.getLastRow();
+    Logger.log('DataBooking Last Row: ' + lastRow);
+
+    // ✅ ดู Sample Column R (index 17)
+    const sample = dbSheet.getRange(2, 1, Math.min(5, lastRow - 1), 18).getValues();
+    sample.forEach((row, i) => {
+      Logger.log(`Row ${i+2}: Shipment=${row[4]} | DriverPhone=${row[17]}`);
+    });
+
+  } catch(e) {
+    Logger.log('❌ Error: ' + e.message);
+  }
+}
+
+function debugShipmentMap() {
+  const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+  const dbSheet = ss.getSheetByName(DATA_BOOKING_SHEET_NAME);
+  const lastRow = dbSheet.getLastRow();
+  const dbData = dbSheet.getRange(2, 1, Math.min(5, lastRow - 1), 18).getValues();
+
+  dbData.forEach((row, i) => {
+    Logger.log(`Row ${i+2}: colE=${row[4]} | colR=${row[17]}`);
+  });
+}
+
+function debugDriverPhone() {
+  const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+  const soSheet = ss.getSheetByName('SO');
+  const lastRow = soSheet.getLastRow();
+  
+  // ดู Sample Column BX (76)
+  const sample = soSheet.getRange(2, 60, Math.min(10, lastRow - 1), 17).getValues();
+  sample.forEach((row, i) => {
+    Logger.log(`Row ${i+2}: BH=${row[0]} | BX=${row[16]}`);
+  });
+}
+
+function debugRunLookup() {
+  updateDataBooking();
+}
+
+function debugCheckShipment() {
+  const ss = SpreadsheetApp.openById(DATA_BOOKING_SS_ID);
+  const dbSheet = ss.getSheetByName(DATA_BOOKING_SHEET_NAME);
+  const lastRow = dbSheet.getLastRow();
+  const data = dbSheet.getRange(2, 1, lastRow - 1, 18).getValues();
+
+  const target = '1663230'; // ✅ เปลี่ยนตรงนี้
+  const found = data.filter(row => {
+    const shipment = String(row[4] || '').replace(/^'/, '').trim();
+    return shipment.split(',').map(s => s.trim()).includes(target);
+  });
+
+  Logger.log(`พบ ${found.length} rows สำหรับ Shipment ${target}`);
+  found.forEach((row, i) => {
+    Logger.log(`Row ${i+1}: Shipment=${row[4]} | DriverPhone=${row[17]}`);
+  });
+}
+
+/**
+ * ✅ รวม Process 2-4 เป็นฟังก์ชันเดียว
+ * - ลบ Row ที่ Column A ว่าง
+ * - ลบ Row ที่ Column M = 0
+ * - ลบค่าใน Column AI (35) และ AR (44)
+ */
+function cleanSheetData(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const lastCol = sheet.getLastColumn();
+
+  // ✅ อ่านข้อมูลทั้งหมดครั้งเดียว
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  // ✅ กรอง + ลบค่า Column AI และ AR ในครั้งเดียว
+  const filtered = [];
+  data.forEach(row => {
+    const colA = String(row[0] || '').trim();
+    const colM = Number(row[12] || 0);
+
+    // ✅ ข้าม Row ที่ Column A ว่าง หรือ Column M = 0
+    if (!colA || colM === 0) return;
+
+    // ✅ ลบค่าใน Column AI (index 34) และ AR (index 43)
+    row[34] = '';  // AI
+    row[43] = '';  // AR
+
+    filtered.push(row);
+  });
+
+  // ✅ ลบข้อมูลเดิมทั้งหมด
+  sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+
+  // ✅ เขียนใหม่ทั้งหมดครั้งเดียว
+  if (filtered.length > 0) {
+    sheet.getRange(2, 1, filtered.length, lastCol).setValues(filtered);
+  }
+
+  Logger.log(`✅ cleanSheetData เสร็จ เหลือ: ${filtered.length} rows`);
+}
+
+// ===============================
+// ✅ DataBooking MT
+// ===============================
+
+function updateDataBookingMT() {
+  try {
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_MT_SS_ID);
+
+    let sheet = ss.getSheetByName(DATA_BOOKING_MT_SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(DATA_BOOKING_MT_SHEET_NAME);
+    } else {
+      sheet.clearContents();
+    }
+
+    const headers = [
+      'วันที่', 'Service', 'ช่วงเวลา', 'สถานะ', 'Shipment',
+      'Pallet', 'ประเภทรถ', 'ทะเบียนรถ', 'ทะเบียนพ่วง', 'บริษัทขนส่ง',
+      'เบอร์ติดต่อ', 'ชื่อลูกค้า', 'รายละเอียด',
+      'BookDateTime', 'RegisterDateTime', 'ConfirmDateTime', 'Status ขนส่ง',
+      'เบอร์คนขับ'
+    ];
+
+    const allRows = [headers];
+
+    ['AY', 'RJ'].forEach(sType => {
+      const ssId = SS_CONFIG[sType];
+      if (!ssId) return;
+
+      const sourceSS = SpreadsheetApp.openById(ssId);
+      const sourceSheet = sourceSS.getSheetByName(SHEET_NAME) || sourceSS.getSheets()[0];
+      if (!sourceSheet) return;
+
+      const lastRow = sourceSheet.getLastRow();
+      if (lastRow < 2) return;
+
+      const data = sourceSheet.getRange(2, 1, lastRow - 1, 23).getValues();
+
+      const formatDT = (val) => {
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+        return String(val);
+      };
+
+      data.forEach(row => {
+        const cellDate = row[4];
+        let dateKey = '';
+
+        if (cellDate instanceof Date) {
+          dateKey = Utilities.formatDate(cellDate, tz, 'yyyy-MM-dd');
+        } else if (cellDate) {
+          try {
+            dateKey = Utilities.formatDate(new Date(cellDate), tz, 'yyyy-MM-dd');
+          } catch(e) {}
+        }
+
+        if (!dateKey) return;
+
+        allRows.push([
+          dateKey,
+          sType,
+          String(row[6] || ''),
+          String(row[1] || ''),
+          "'" + String(row[2] || ''),
+          Number(row[10] || 0),
+          String(row[3] || ''),
+          String(row[12] || ''),
+          (() => {
+            const val = row[13];
+            if (!val) return '';
+            if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+            return String(val);
+          })(),
+          String(row[5] || ''),
+          String(row[9] || ''),
+          String(row[15] || ''),
+          String(row[0] || ''),
+          formatDT(row[11]),
+          formatDT(row[18]),
+          formatDT(row[20]),
+          String(row[19] || ''),
+          (() => {
+            const val = row[9];
+            if (!val || val === 0 || val === '0') return '';
+            return "'" + String(val).replace(/\D/g, '');
+          })()
+        ]);
+      });
+
+      Logger.log(`✅ MT DataBooking ${sType}: ${allRows.length - 1} rows`);
+    });
+
+    if (allRows.length > 1) {
+      sheet.getRange(1, 1, allRows.length, headers.length).setValues(allRows);
+    }
+
+    const headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setBackground('#1e3a5f');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+    headerRange.setHorizontalAlignment('center');
+    sheet.setFrozenRows(1);
+    sheet.getRange(2, 5, Math.max(allRows.length - 1, 1), 1).setNumberFormat('@');
+    sheet.autoResizeColumns(1, headers.length);
+
+    SpreadsheetApp.flush();
+    Logger.log(`✅ MT DataBooking updated: ${allRows.length - 1} rows`);
+
+    // ✅ Lookup ไปยัง Sheet SO MT
+    lookupDataBookingToSO_MT();
+
+    // ✅ ลบ Trigger ที่สร้างไว้หลังรันเสร็จ
+    ScriptApp.getProjectTriggers().forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'updateDataBookingMT') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+
+    return { success: true, message: `อัปเดต MT DataBooking สำเร็จ ${allRows.length - 1} rows` };
+
+  } catch(e) {
+    Logger.log('❌ updateDataBookingMT error: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+function lookupDataBookingToSO_MT() {
+  try {
+    const tz = getTz();
+    const ss = SpreadsheetApp.openById(DATA_BOOKING_MT_SS_ID);
+
+    const dbSheet = ss.getSheetByName(DATA_BOOKING_MT_SHEET_NAME);
+    if (!dbSheet) throw new Error('ไม่พบ Sheet DataBooking MT');
+
+    const dbLastRow = dbSheet.getLastRow();
+    if (dbLastRow < 2) return;
+
+    const dbData = dbSheet.getRange(2, 1, dbLastRow - 1, 18).getValues();
+
+    const shipmentMap = {};
+
+    dbData.forEach(row => {
+      const shipmentRaw = String(row[4] || '').replace(/^'/, '').trim();
+      if (!shipmentRaw) return;
+
+      const formatVal = (val) => {
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy HH:mm');
+        return String(val);
+      };
+
+      const colA = (() => {
+        const val = row[0];
+        if (!val) return '';
+        if (val instanceof Date) return Utilities.formatDate(val, tz, 'dd/MM/yyyy');
+        return String(val);
+      })();
+      const colC = formatVal(row[2]);
+      const colH = String(row[7] || '');
+      const colI = String(row[8] || '');
+      const colO = formatVal(row[14]);
+      const colP = formatVal(row[15]);
+      const colQ = String(row[16] || '');
+      const colR = (() => {
+        const val = String(row[17] || '').trim();
+        if (!val || val === '0' || val === '000') return '';
+        return "'" + val;
+      })();
+
+      shipmentRaw.split(',').forEach(s => {
+        const key = s.trim();
+        if (key.length === 7) {
+          shipmentMap[key] = { colA, colC, colO, colP, colH, colI, colQ, colR };
+        }
+      });
+    });
+
+    Logger.log('✅ MT Shipment Map size: ' + Object.keys(shipmentMap).length);
+
+    const soSheet = ss.getSheetByName('SO');
+    if (!soSheet) throw new Error('ไม่พบ Sheet SO MT');
+
+    const soLastRow = soSheet.getLastRow();
+    if (soLastRow < 2) return;
+
+    const headers = [
+      'BookingTime', 'RegisterTime', 'ConfirmTime',
+      'TruckNo', 'TrailerNo', 'BookingDate',
+      'Status', 'DriverPhone'
+    ];
+    soSheet.getRange(1, 69, 1, headers.length).setValues([headers]);
+
+    const headerRange = soSheet.getRange(1, 69, 1, headers.length);
+    headerRange.setBackground('#1e3a5f');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+
+    const bhValues = soSheet.getRange(2, 60, soLastRow - 1, 1).getValues();
+
+    const resultRows = bhValues.map(row => {
+      const bhVal = String(row[0] || '').trim();
+      if (!bhVal) return ['', '', '', '', '', '', '', ''];
+
+      const found = shipmentMap[bhVal];
+      if (!found) return ['', '', '', '', '', '', '', ''];
+
+      return [
+        found.colC, found.colO, found.colP,
+        found.colH, found.colI, found.colA,
+        found.colQ, found.colR
+      ];
+    });
+
+    soSheet.getRange(2, 69, resultRows.length, 8).setValues(resultRows);
+    SpreadsheetApp.flush();
+
+    Logger.log(`✅ MT lookupDataBookingToSO เสร็จ`);
+
+  } catch(e) {
+    Logger.log('❌ lookupDataBookingToSO_MT error: ' + e.message);
+    throw e;
+  }
+}

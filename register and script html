@@ -667,7 +667,7 @@
 
       document.getElementById('shipment-error').classList.add('hidden');
 
-      // ✅ บันทึกค่า
+      // ✅  บันทึกค่า
       currentBooking.confirmedShipmentNo = shipmentNo;
       currentBooking.phone = phoneDigits;
 

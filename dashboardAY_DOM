@@ -243,7 +243,7 @@
 
     // ===== Auto Refresh =====
     loadData();
-    setInterval(loadData, 60000); // ทุก 60 วินาที
+    setInterval(loadData, 60000); // ทุก  60 วินาที
   </script>
 
 </body>

@@ -5,7 +5,7 @@
     let currentCapacities = {};
     
     // ✅ เพิ่มไว้ด้านบนไฟล์ (ครั้งเดียว)
-    let cachedBookingDate = ''; // วันที่ที่โหลด booking ล่าสุด เช่น "2026-01-25"
+    let cachedBookingDate = ''; // วันที่ที่โหลด booking  ล่าสุด เช่น "2026-01-25"
     
     // ✅ เพิ่มตัวแปรสำหรับ Auto-Refresh
     let registerAutoRefreshInterval = null;

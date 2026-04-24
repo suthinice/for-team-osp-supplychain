@@ -2651,7 +2651,7 @@
                   class="form-input-balanced text-sm py-1.5">
               </div>
               <div>
-                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">วันที่สิ้นสุด</label>
+                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">วันที่สิ้น สุด</label>
                 <input type="date" id="daily-dash-end"
                   class="form-input-balanced text-sm py-1.5">
               </div>

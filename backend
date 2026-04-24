@@ -1518,56 +1518,52 @@ function isCodeDuplicate(sheet, code) {
 /**
  * ✅ สร้าง Unique Code (ไม่ซ้ำในชีต)
  */
-function generateUniqueCode(sheet, deliveryDate, serviceType) {
-  const prefixMap = {
-    'AY':       '2',
-    'RJ':       '3',
-    'AY_EXPORT':'4',
-    'AY_OEM':   '5',
-    'AY_FOC':   '6'
-  };
-  const prefix = prefixMap[serviceType] || '1';
-
+function calculateQueueNumber(sheet, bookingDate, currentRowIndex) {
   const tz = getTz();
+  const targetDateKey = Utilities.formatDate(bookingDate, tz, "yyyy-MM-dd");
+  const lastRow = sheet.getLastRow();
 
-  // ✅ วันที่จอง และวันก่อนหน้า 1 วัน
-  const dateStr = Utilities.formatDate(deliveryDate, tz, 'yyyy-MM-dd');
-  const prevDate = new Date(deliveryDate);
-  prevDate.setDate(prevDate.getDate() - 1);
-  const prevDateStr = Utilities.formatDate(prevDate, tz, 'yyyy-MM-dd');
+  if (lastRow < 2) return 1;
 
-  // ✅ ดึงข้อมูลทั้งหมด
-  const data = sheet.getDataRange().getValues();
-  const usedCodes = new Set();
+  // ✅ อ่านแค่ 2 Column ที่ใช้จริง
+  const colE = sheet.getRange(2, 5, lastRow - 1, 1).getValues();  // Column E
+  const colV = sheet.getRange(2, 22, lastRow - 1, 1).getValues(); // Column V
 
-  data.forEach(row => {
-    const rowDate = row[4]; // Column E
-    const rowCode = String(row[17] || ''); // Column R
+  let maxQueueToday = 0;
+  let foundAnyInSameDate = false;
 
-    let rowDateStr = '';
-    if (rowDate instanceof Date) {
-      rowDateStr = Utilities.formatDate(rowDate, tz, 'yyyy-MM-dd');
-    } else {
-      rowDateStr = String(rowDate || '').trim();
+  for (let i = 0; i < colE.length; i++) {
+    const rowNum = i + 2;
+    if (rowNum === currentRowIndex) continue;
+
+    const cellDate = colE[i][0];
+    const queue = colV[i][0];
+
+    if (!cellDate) continue;
+
+    let rowDateKey = '';
+    try {
+      if (cellDate instanceof Date) {
+        rowDateKey = Utilities.formatDate(cellDate, tz, "yyyy-MM-dd");
+      } else {
+        rowDateKey = Utilities.formatDate(new Date(cellDate), tz, "yyyy-MM-dd");
+      }
+    } catch(e) { continue; }
+
+    if (rowDateKey === targetDateKey) {
+      foundAnyInSameDate = true;
+      const n = Number(queue);
+      if (!isNaN(n) && n > maxQueueToday) {
+        maxQueueToday = n;
+      }
     }
+  }
 
-    // ✅ เช็คทั้งวันที่จองและวันก่อนหน้า
-    if ((rowDateStr === dateStr || rowDateStr === prevDateStr) && rowCode.startsWith(prefix)) {
-      usedCodes.add(rowCode);
-    }
-  });
+  if (!foundAnyInSameDate) return 1;
 
-  // ✅ สุ่มโค้ดที่ไม่ซ้ำ
-  let code = '';
-  let attempts = 0;
-  do {
-    const rand = Math.floor(Math.random() * 999) + 1;
-    code = prefix + String(rand).padStart(3, '0');
-    attempts++;
-    if (attempts > 1000) throw new Error('ไม่สามารถสร้างรหัสได้ (รหัสเต็ม)');
-  } while (usedCodes.has(code));
-
-  return code;
+  const newQueue = maxQueueToday + 1;
+  Logger.log('✅ Queue: ' + newQueue);
+  return newQueue;
 }
 
 /**

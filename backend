@@ -595,6 +595,14 @@ function registerUser(payload) {
     const exists = values.some(r => String(r[0]).trim().toLowerCase() === id.toLowerCase());
     if (exists) return { success: false, message: 'ID นี้ถูกใช้งานแล้ว กรุณาใช้ ID อื่น' };
 
+    const totalUsers = values.length; // จำนวน User ที่มีอยู่แล้ว
+    if (totalUsers >= 90) {
+      return { 
+        success: false, 
+        message: 'ไม่สามารถสมัครสมาชิกได้' 
+      };
+    }
+
     const ts = Utilities.formatDate(new Date(), tz, 'M/d/yyyy HH:mm:ss');
 
     const idText = "'" + id;

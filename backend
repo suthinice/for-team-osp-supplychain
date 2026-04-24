@@ -392,6 +392,10 @@ function saveBookingData(data) {
     if (!data.time) return { success: false, message: "กรุณาเลือกช่วงเวลา" };
 
     const deliveryDate = parseDateString(bookingDateStr);
+    const bookingMonth = deliveryDate.getMonth() + 1; // 1-12
+    if (bookingMonth >= 7) {
+      return { success: false, message: 'ฐานข้อมูลเต็ม ไม่สามารถเพิ่มการจองได้' };
+    }
 
     // ✅ 1) ตรวจสอบ cutoff 09:00 (ยกเว้น AY_EXPORT)
     const now = new Date();
